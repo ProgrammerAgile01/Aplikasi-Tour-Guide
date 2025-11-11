@@ -1,60 +1,214 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { toast } from "@/hooks/use-toast"
-import { Plus, Edit2, Trash2, Send, Clock, MapPin } from "lucide-react"
+import { useState, useEffect, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
+import { Plus, Edit2, Trash2, Send, Clock, MapPin } from "lucide-react";
+
+/* ============================ TYPES ============================ */
 
 interface ScheduleItem {
-  id: string
-  day: number
-  date: string
-  time: string
-  title: string
-  location: string
-  description?: string
-  isChanged?: boolean
-  isAdditional?: boolean
+  id: string;
+  tripId: string;
+  day: number;
+  date: string; // UI text
+  time: string; // HH:mm (string)
+  title: string;
+  location: string;
+  description?: string;
+  isChanged?: boolean;
+  isAdditional?: boolean;
 }
 
-export default function AdminSchedulePage() {
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([
-    {
-      id: "1-1",
-      day: 1,
-      date: "27 November 2025",
-      time: "13.00",
-      title: "Penjemputan di Bandara Komodo Airport",
-      location: "Komodo Airport",
-      description: "Tim akan menjemput peserta di bandara",
-    },
-    {
-      id: "1-2",
-      day: 1,
-      date: "27 November 2025",
-      time: "14.30",
-      title: "Menuju ke pelabuhan untuk inap di Pinisi Deluxe",
-      location: "Pelabuhan Labuan Bajo",
-    },
-    {
-      id: "2-1",
-      day: 2,
-      date: "28 November 2025",
-      time: "05.30",
-      title: "Morning call, naik ke Bukit Padar",
-      location: "Bukit Padar",
-      isChanged: true,
-    },
-  ])
+type TripStatus = "ongoing" | "completed";
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null)
+interface Trip {
+  id: string;
+  name: string;
+  status: TripStatus;
+  startDate: string; // ISO
+  endDate: string; // ISO
+}
+
+/* ============================ UTILS ============================ */
+
+function formatIdDate(d: Date) {
+  return d.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/** Bangun opsi Hari n - <tanggal> dari rentang tanggal trip */
+function buildDayDateOptions(trip?: Trip) {
+  if (!trip?.startDate || !trip?.endDate)
+    return [] as Array<{ day: number; dateText: string; label: string }>;
+  const start = new Date(trip.startDate);
+  const end = new Date(trip.endDate);
+
+  // normalisasi jam agar aman (hindari DST/offset edge)
+  start.setHours(12, 0, 0, 0);
+  end.setHours(12, 0, 0, 0);
+
+  const days: Array<{ day: number; dateText: string; label: string }> = [];
+  let idx = 1;
+  for (
+    let d = new Date(start.getTime());
+    d.getTime() <= end.getTime();
+    d.setDate(d.getDate() + 1), idx++
+  ) {
+    const dateText = formatIdDate(d);
+    days.push({ day: idx, dateText, label: `Hari ${idx} - ${dateText}` });
+  }
+  return days;
+}
+
+/* ============================ API HELPERS ============================ */
+
+async function apiGetTrips(): Promise<Trip[]> {
+  const url = new URL("/api/trips", window.location.origin);
+  url.searchParams.set("take", "200");
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const json = await res.json();
+  if (!res.ok || !json?.ok)
+    throw new Error(json?.message || "Gagal memuat daftar trip.");
+  return (json.items || []).map(
+    (t: any) =>
+      ["id", "name", "status", "startDate", "endDate"].reduce(
+        (o, k) => ({ ...o, [k]: String(t[k]) }),
+        {}
+      ) as Trip
+  );
+}
+
+type ScheduleCreatePayload = {
+  tripId: string;
+  day: number;
+  dateText: string;
+  timeText: string;
+  title: string;
+  location: string;
+  description?: string;
+  isChanged?: boolean;
+  isAdditional?: boolean;
+};
+type ScheduleUpdatePayload = Partial<Omit<ScheduleCreatePayload, "tripId">>;
+
+async function apiGetSchedules(tripId: string): Promise<ScheduleItem[]> {
+  const url = new URL("/api/schedules", window.location.origin);
+  url.searchParams.set("tripId", tripId);
+  url.searchParams.set("take", "500");
+  const res = await fetch(url.toString(), { cache: "no-store" });
+  const json = await res.json();
+  if (!res.ok || !json?.ok)
+    throw new Error(json?.message || "Gagal memuat jadwal.");
+  return (json.items || []).map((s: any) => ({
+    id: String(s.id),
+    tripId: String(s.tripId),
+    day: Number(s.day),
+    date: String(s.dateText),
+    time: String(s.timeText ?? ""),
+    title: String(s.title),
+    location: String(s.location),
+    description: s.description ? String(s.description) : "",
+    isChanged: Boolean(s.isChanged),
+    isAdditional: Boolean(s.isAdditional),
+  })) as ScheduleItem[];
+}
+
+async function apiCreateSchedule(
+  payload: ScheduleCreatePayload
+): Promise<ScheduleItem> {
+  const res = await fetch("/api/schedules", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!res.ok || !json?.ok)
+    throw new Error(json?.message || "Gagal menambah jadwal.");
+  const s = json.item;
+  return {
+    id: String(s.id),
+    tripId: String(s.tripId),
+    day: Number(s.day),
+    date: String(s.dateText),
+    time: String(s.timeText ?? ""),
+    title: String(s.title),
+    location: String(s.location),
+    description: s.description ? String(s.description) : "",
+    isChanged: Boolean(s.isChanged),
+    isAdditional: Boolean(s.isAdditional),
+  };
+}
+
+async function apiUpdateSchedule(
+  id: string,
+  payload: ScheduleUpdatePayload
+): Promise<ScheduleItem> {
+  if (!id) throw new Error("ID wajib diisi pada URL.");
+  const res = await fetch(`/api/schedules/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...payload, id }),
+  });
+  const json = await res.json();
+  if (!res.ok || !json?.ok)
+    throw new Error(json?.message || "Gagal memperbarui jadwal.");
+  const s = json.item;
+  return {
+    id: String(s.id),
+    tripId: String(s.tripId),
+    day: Number(s.day),
+    date: String(s.dateText),
+    time: String(s.timeText ?? ""),
+    title: String(s.title),
+    location: String(s.location),
+    description: s.description ? String(s.description) : "",
+    isChanged: Boolean(s.isChanged),
+    isAdditional: Boolean(s.isAdditional),
+  };
+}
+
+async function apiDeleteSchedule(id: string) {
+  if (!id) throw new Error("ID wajib diisi.");
+  const res = await fetch(`/api/schedules/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  const json = await res.json();
+  if (!res.ok || !json?.ok)
+    throw new Error(json?.message || "Gagal menghapus jadwal.");
+}
+
+/* ============================ PAGE ============================ */
+
+export default function AdminSchedulePage() {
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState<string>("");
+
+  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(true);
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
+
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(
+    null
+  );
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     day: 1,
     date: "",
@@ -64,24 +218,138 @@ export default function AdminSchedulePage() {
     description: "",
     isChanged: false,
     isAdditional: false,
-  })
+  });
 
-  const handleAddSchedule = () => {
-    const newSchedule: ScheduleItem = {
-      id: `${formData.day}-${Date.now()}`,
-      ...formData,
+  // Trips
+  useEffect(() => {
+    let mounted = true;
+    setLoadingTrips(true);
+    apiGetTrips()
+      .then((items) => {
+        if (!mounted) return;
+        setTrips(items);
+        if (!selectedTripId && items.length > 0) {
+          const ongoing = items.find((t) => t.status === "ongoing");
+          setSelectedTripId(ongoing?.id || items[0].id);
+        }
+      })
+      .catch((err: any) =>
+        toast({
+          title: "Gagal Memuat",
+          description: err?.message || "Tidak bisa memuat daftar trip.",
+          variant: "destructive",
+        })
+      )
+      .finally(() => mounted && setLoadingTrips(false));
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Schedules when trip changes
+  useEffect(() => {
+    if (!selectedTripId) {
+      setSchedules([]);
+      return;
     }
-    setSchedules([...schedules, newSchedule])
-    setIsAddDialogOpen(false)
-    resetForm()
-    toast({
-      title: "Jadwal Ditambahkan",
-      description: "Jadwal baru berhasil ditambahkan.",
-    })
-  }
+    let mounted = true;
+    setLoadingSchedules(true);
+    apiGetSchedules(selectedTripId)
+      .then((items) => mounted && setSchedules(items))
+      .catch((err: any) =>
+        toast({
+          title: "Gagal Memuat Jadwal",
+          description: err?.message || "Tidak bisa memuat jadwal trip.",
+          variant: "destructive",
+        })
+      )
+      .finally(() => mounted && setLoadingSchedules(false));
+    return () => {
+      mounted = false;
+    };
+  }, [selectedTripId]);
+
+  const selectedTrip = useMemo(
+    () => trips.find((t) => t.id === selectedTripId),
+    [trips, selectedTripId]
+  );
+
+  /** opsi gabungan Hari - Tanggal */
+  const dayDateOptions = useMemo(
+    () => buildDayDateOptions(selectedTrip),
+    [selectedTrip]
+  );
+
+  // Jika dialog add dibuka, set default day/date dari opsi pertama
+  useEffect(() => {
+    if (!isAddDialogOpen) return;
+    if (dayDateOptions.length > 0) {
+      const first = dayDateOptions[0];
+      setFormData((f) => ({ ...f, day: first.day, date: first.dateText }));
+    }
+  }, [isAddDialogOpen, dayDateOptions]);
+
+  const filteredSchedules = useMemo(
+    () => schedules.filter((s) => s.tripId === selectedTripId),
+    [schedules, selectedTripId]
+  );
+
+  const handleAddSchedule = async () => {
+    if (!selectedTripId) {
+      toast({
+        title: "Pilih Trip",
+        description: "Silakan pilih trip terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      if (!formData.title || !formData.location) {
+        toast({
+          title: "Validasi",
+          description: "Judul & lokasi wajib diisi.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const created = await apiCreateSchedule({
+        tripId: selectedTripId,
+        day: formData.day,
+        dateText: formData.date || "-",
+        timeText: formData.time || "-",
+        title: formData.title,
+        location: formData.location,
+        description: formData.description || undefined,
+        isChanged: formData.isChanged,
+        isAdditional: formData.isAdditional,
+      });
+      setSchedules((cur) => [...cur, created]);
+      setIsAddDialogOpen(false);
+      resetForm();
+      toast({
+        title: "Jadwal Ditambahkan",
+        description: "Jadwal baru berhasil ditambahkan.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Gagal Menambahkan",
+        description:
+          err?.message || "Terjadi kesalahan saat menambahkan jadwal.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleEditSchedule = (schedule: ScheduleItem) => {
-    setEditingSchedule(schedule)
+    if (!schedule?.id) {
+      toast({
+        title: "Tidak Bisa Edit",
+        description: "ID jadwal tidak ditemukan.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setEditingSchedule(schedule);
     setFormData({
       day: schedule.day,
       date: schedule.date,
@@ -91,35 +359,81 @@ export default function AdminSchedulePage() {
       description: schedule.description || "",
       isChanged: schedule.isChanged || false,
       isAdditional: schedule.isAdditional || false,
-    })
-  }
+    });
+  };
 
-  const handleUpdateSchedule = () => {
-    if (editingSchedule) {
-      setSchedules(schedules.map((s) => (s.id === editingSchedule.id ? { ...editingSchedule, ...formData } : s)))
-      setEditingSchedule(null)
-      resetForm()
+  const handleUpdateSchedule = async () => {
+    if (!editingSchedule?.id) {
+      toast({
+        title: "Gagal Memperbarui",
+        description: "ID wajib diisi pada URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const updated = await apiUpdateSchedule(editingSchedule.id, {
+        day: formData.day,
+        dateText: formData.date,
+        timeText: formData.time,
+        title: formData.title,
+        location: formData.location,
+        description: formData.description || undefined,
+        isChanged: formData.isChanged,
+        isAdditional: formData.isAdditional,
+      });
+      setSchedules((cur) =>
+        cur.map((s) => (s.id === updated.id ? updated : s))
+      );
+      setEditingSchedule(null); // ⬅️ menutup modal karena controlled
+      resetForm();
       toast({
         title: "Jadwal Diperbarui",
         description: "Perubahan jadwal berhasil disimpan.",
-      })
+      });
+    } catch (err: any) {
+      toast({
+        title: "Gagal Memperbarui",
+        description:
+          err?.message || "Terjadi kesalahan saat memperbarui jadwal.",
+        variant: "destructive",
+      });
     }
-  }
+  };
 
-  const handleDeleteSchedule = (id: string) => {
-    setSchedules(schedules.filter((s) => s.id !== id))
-    toast({
-      title: "Jadwal Dihapus",
-      description: "Jadwal berhasil dihapus dari daftar.",
-    })
-  }
+  const handleDeleteSchedule = async (id: string) => {
+    if (!id) {
+      toast({
+        title: "Gagal Menghapus",
+        description: "ID wajib diisi.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const prev = schedules;
+    setSchedules((cur) => cur.filter((s) => s.id !== id)); // optimistik
+    try {
+      await apiDeleteSchedule(id);
+      toast({
+        title: "Jadwal Dihapus",
+        description: "Jadwal berhasil dihapus dari daftar.",
+      });
+    } catch (err: any) {
+      setSchedules(prev); // rollback
+      toast({
+        title: "Gagal Menghapus",
+        description: err?.message || "Terjadi kesalahan saat menghapus jadwal.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSendToParticipants = () => {
     toast({
       title: "Jadwal Dikirim",
       description: "Perubahan jadwal telah dikirim ke seluruh peserta.",
-    })
-  }
+    });
+  };
 
   const resetForm = () => {
     setFormData({
@@ -131,34 +445,44 @@ export default function AdminSchedulePage() {
       description: "",
       isChanged: false,
       isAdditional: false,
-    })
-  }
+    });
+  };
 
-  const schedulesByDay = schedules.reduce(
-    (acc, schedule) => {
-      if (!acc[schedule.day]) acc[schedule.day] = []
-      acc[schedule.day].push(schedule)
-      return acc
-    },
-    {} as Record<number, ScheduleItem[]>,
-  )
+  const schedulesByDay = useMemo(() => {
+    const acc: Record<number, ScheduleItem[]> = {};
+    filteredSchedules.forEach((s) => {
+      if (!acc[s.day]) acc[s.day] = [];
+      acc[s.day].push(s);
+    });
+    return acc;
+  }, [filteredSchedules]);
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Jadwal & Itinerary</h1>
-          <p className="text-slate-600 mt-1">Kelola jadwal perjalanan peserta</p>
+          <h1 className="text-3xl font-bold text-slate-900">
+            Jadwal & Itinerary
+          </h1>
+          <p className="text-slate-600 mt-1">
+            Kelola jadwal perjalanan peserta
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleSendToParticipants} variant="outline" className="gap-2 bg-transparent">
+          <Button
+            onClick={handleSendToParticipants}
+            variant="outline"
+            className="gap-2 bg-transparent"
+          >
             <Send size={16} />
             Kirim ke Peserta
           </Button>
+
+          {/* ADD dialog (tetap seperti sebelumnya) */}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" disabled={!selectedTripId}>
                 <Plus size={16} />
                 Tambah Jadwal
               </Button>
@@ -168,31 +492,51 @@ export default function AdminSchedulePage() {
                 <DialogTitle>Tambah Jadwal Baru</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                {/* GABUNG: Hari + Tanggal */}
                 <div className="space-y-2">
                   <Label>Hari</Label>
                   <select
                     className="w-full h-10 px-3 border border-slate-200 rounded-md"
-                    value={formData.day}
-                    onChange={(e) => setFormData({ ...formData, day: Number(e.target.value) })}
+                    value={`${formData.day}|${formData.date}`}
+                    onChange={(e) => {
+                      const [dayStr, dateText] = e.target.value.split("|");
+                      setFormData((f) => ({
+                        ...f,
+                        day: Number(dayStr),
+                        date: dateText,
+                      }));
+                    }}
                   >
-                    <option value={1}>Hari 1 - 27 November 2025</option>
-                    <option value={2}>Hari 2 - 28 November 2025</option>
-                    <option value={3}>Hari 3 - 29 November 2025</option>
+                    {buildDayDateOptions(
+                      trips.find((t) => t.id === selectedTripId)
+                    ).map((opt) => (
+                      <option
+                        key={opt.day}
+                        value={`${opt.day}|${opt.dateText}`}
+                      >
+                        {opt.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
+
                 <div className="space-y-2">
                   <Label>Waktu</Label>
                   <Input
                     type="time"
                     value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, time: e.target.value })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Judul Aktivitas</Label>
                   <Input
                     value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, title: e.target.value })
+                    }
                     placeholder="Contoh: Trekking Pulau Komodo"
                   />
                 </div>
@@ -200,7 +544,9 @@ export default function AdminSchedulePage() {
                   <Label>Lokasi</Label>
                   <Input
                     value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, location: e.target.value })
+                    }
                     placeholder="Contoh: Pulau Komodo"
                   />
                 </div>
@@ -208,7 +554,9 @@ export default function AdminSchedulePage() {
                   <Label>Deskripsi (Opsional)</Label>
                   <Textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
                     placeholder="Tambahan informasi tentang aktivitas ini..."
                   />
                 </div>
@@ -217,7 +565,12 @@ export default function AdminSchedulePage() {
                     <Checkbox
                       id="isAdditional"
                       checked={formData.isAdditional}
-                      onCheckedChange={(checked) => setFormData({ ...formData, isAdditional: checked as boolean })}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          isAdditional: checked as boolean,
+                        })
+                      }
                     />
                     <Label htmlFor="isAdditional" className="font-normal">
                       Tandai sebagai Jadwal Tambahan
@@ -227,7 +580,12 @@ export default function AdminSchedulePage() {
                     <Checkbox
                       id="isChanged"
                       checked={formData.isChanged}
-                      onCheckedChange={(checked) => setFormData({ ...formData, isChanged: checked as boolean })}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          isChanged: checked as boolean,
+                        })
+                      }
                     />
                     <Label htmlFor="isChanged" className="font-normal">
                       Tandai sebagai Perubahan Jadwal
@@ -243,134 +601,323 @@ export default function AdminSchedulePage() {
         </div>
       </div>
 
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <Label className="text-base font-semibold">Pilih Trip</Label>
+            <select
+              className="w-full h-11 px-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+              value={selectedTripId}
+              onChange={(e) => setSelectedTripId(e.target.value)}
+              disabled={loadingTrips}
+            >
+              <option value="">
+                {loadingTrips ? "Memuat..." : "-- Pilih Trip --"}
+              </option>
+              {trips.map((trip) => (
+                <option key={trip.id} value={trip.id}>
+                  {trip.name} (
+                  {trip.status === "ongoing" ? "Sedang Berjalan" : "Selesai"})
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Schedule List by Day */}
-      <div className="space-y-6">
-        {Object.entries(schedulesByDay)
-          .sort(([a], [b]) => Number(a) - Number(b))
-          .map(([day, daySchedules]) => (
-            <Card key={day}>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Hari {day} - {daySchedules[0]?.date}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {daySchedules.map((schedule) => (
-                    <div
-                      key={schedule.id}
-                      className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 text-blue-600">
-                              <Clock size={16} />
-                              <span className="font-semibold">{schedule.time}</span>
-                            </div>
-                            {schedule.isChanged && (
-                              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                                Perubahan
-                              </span>
-                            )}
-                            {schedule.isAdditional && (
-                              <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                                Tambahan
-                              </span>
-                            )}
-                          </div>
-                          <h3 className="font-semibold text-slate-900">{schedule.title}</h3>
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <MapPin size={14} />
-                            {schedule.location}
-                          </div>
-                          {schedule.description && <p className="text-sm text-slate-600">{schedule.description}</p>}
-                        </div>
-                        <div className="flex gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button variant="outline" size="icon" onClick={() => handleEditSchedule(schedule)}>
-                                <Edit2 size={16} />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-                              <DialogHeader>
-                                <DialogTitle>Edit Jadwal</DialogTitle>
-                              </DialogHeader>
-                              <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                  <Label>Waktu</Label>
-                                  <Input
-                                    type="time"
-                                    value={formData.time}
-                                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Judul Aktivitas</Label>
-                                  <Input
-                                    value={formData.title}
-                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Lokasi</Label>
-                                  <Input
-                                    value={formData.location}
-                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Deskripsi</Label>
-                                  <Textarea
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                  />
-                                </div>
-                                <div className="space-y-3">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id="edit-isAdditional"
-                                      checked={formData.isAdditional}
-                                      onCheckedChange={(checked) =>
-                                        setFormData({ ...formData, isAdditional: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor="edit-isAdditional" className="font-normal">
-                                      Jadwal Tambahan
-                                    </Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id="edit-isChanged"
-                                      checked={formData.isChanged}
-                                      onCheckedChange={(checked) =>
-                                        setFormData({ ...formData, isChanged: checked as boolean })
-                                      }
-                                    />
-                                    <Label htmlFor="edit-isChanged" className="font-normal">
-                                      Perubahan Jadwal
-                                    </Label>
-                                  </div>
-                                </div>
-                                <Button onClick={handleUpdateSchedule} className="w-full">
-                                  Simpan Perubahan
-                                </Button>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
-                          <Button variant="outline" size="icon" onClick={() => handleDeleteSchedule(schedule.id)}>
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+      {selectedTripId ? (
+        <div className="space-y-6">
+          {loadingSchedules ? (
+            <Card>
+              <CardContent className="py-12 text-center text-slate-500">
+                Memuat jadwal…
               </CardContent>
             </Card>
-          ))}
-      </div>
+          ) : Object.keys(
+              filteredSchedules.reduce(
+                (acc: Record<number, ScheduleItem[]>, s) => {
+                  (acc[s.day] ||= []).push(s);
+                  return acc;
+                },
+                {}
+              )
+            ).length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-slate-500">
+                  Belum ada jadwal untuk trip ini.
+                </p>
+                <p className="text-sm text-slate-400 mt-1">
+                  Klik tombol "Tambah Jadwal" untuk memulai.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            Object.entries(
+              filteredSchedules.reduce(
+                (acc: Record<number, ScheduleItem[]>, s) => {
+                  (acc[s.day] ||= []).push(s);
+                  return acc;
+                },
+                {}
+              )
+            )
+              .sort(([a], [b]) => Number(a) - Number(b))
+              .map(([day, daySchedules]) => (
+                <Card key={day}>
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      Hari {day} - {daySchedules[0]?.date}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {daySchedules.map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2 text-blue-600">
+                                  <Clock size={16} />
+                                  <span className="font-semibold">
+                                    {schedule.time}
+                                  </span>
+                                </div>
+                                {schedule.isChanged && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                    Perubahan
+                                  </span>
+                                )}
+                                {schedule.isAdditional && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                    Tambahan
+                                  </span>
+                                )}
+                              </div>
+                              <h3 className="font-semibold text-slate-900">
+                                {schedule.title}
+                              </h3>
+                              <div className="flex items-center gap-2 text-sm text-slate-600">
+                                <MapPin size={14} />
+                                {schedule.location}
+                              </div>
+                              {schedule.description && (
+                                <p className="text-sm text-slate-600">
+                                  {schedule.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex gap-2">
+                              {/* Tombol Edit -> set state; dialog edit dikontrol global */}
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleEditSchedule(schedule)}
+                              >
+                                <Edit2 size={16} />
+                              </Button>
+
+                              {/* Dialog Hapus terkontrol */}
+                              <Dialog
+                                open={!!confirmDeleteId}
+                                onOpenChange={(o) =>
+                                  !o && setConfirmDeleteId(null)
+                                }
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() =>
+                                      setConfirmDeleteId(schedule.id)
+                                    }
+                                  >
+                                    <Trash2 size={16} />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-sm">
+                                  <DialogHeader>
+                                    <DialogTitle>Hapus Jadwal?</DialogTitle>
+                                  </DialogHeader>
+                                  <p className="text-slate-600">
+                                    Tindakan ini tidak bisa dibatalkan. Yakin
+                                    ingin menghapus jadwal ini?
+                                  </p>
+                                  <div className="mt-4 flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      className="bg-transparent flex-1"
+                                      onClick={() => setConfirmDeleteId(null)}
+                                    >
+                                      Batal
+                                    </Button>
+                                    <Button
+                                      className="flex-1"
+                                      onClick={async () => {
+                                        const id = confirmDeleteId;
+                                        setConfirmDeleteId(null);
+                                        if (!id) return;
+                                        await handleDeleteSchedule(id);
+                                      }}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+          )}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-slate-500">
+              Silakan pilih trip terlebih dahulu untuk melihat jadwal.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== Dialog EDIT terkontrol secara global ===== */}
+      <Dialog
+        open={!!editingSchedule}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSchedule(null);
+            resetForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Jadwal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Hari + Tanggal (gabung) */}
+            <div className="space-y-2">
+              <Label>Hari</Label>
+              <select
+                className="w-full h-10 px-3 border border-slate-200 rounded-md"
+                value={`${formData.day}|${formData.date}`}
+                onChange={(e) => {
+                  const [dayStr, dateText] = e.target.value.split("|");
+                  setFormData((f) => ({
+                    ...f,
+                    day: Number(dayStr),
+                    date: dateText,
+                  }));
+                }}
+              >
+                {buildDayDateOptions(
+                  trips.find((t) => t.id === selectedTripId)
+                ).map((opt) => (
+                  <option key={opt.day} value={`${opt.day}|${opt.dateText}`}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Waktu</Label>
+              <Input
+                type="time"
+                value={formData.time}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    time: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Judul Aktivitas</Label>
+              <Input
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    title: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Lokasi</Label>
+              <Input
+                value={formData.location}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    location: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Deskripsi</Label>
+              <Textarea
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    description: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-isAdditional"
+                  checked={formData.isAdditional}
+                  onCheckedChange={(checked) =>
+                    setFormData({
+                      ...formData,
+                      isAdditional: checked as boolean,
+                    })
+                  }
+                />
+                <Label htmlFor="edit-isAdditional" className="font-normal">
+                  Jadwal Tambahan
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit-isChanged"
+                  checked={formData.isChanged}
+                  onCheckedChange={(checked) =>
+                    setFormData({
+                      ...formData,
+                      isChanged: checked as boolean,
+                    })
+                  }
+                />
+                <Label htmlFor="edit-isChanged" className="font-normal">
+                  Perubahan Jadwal
+                </Label>
+              </div>
+            </div>
+            <Button onClick={handleUpdateSchedule} className="w-full">
+              Simpan Perubahan
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* ===== end dialog edit ===== */}
     </div>
-  )
+  );
 }

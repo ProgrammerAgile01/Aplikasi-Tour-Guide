@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUM ---
+enum TripStatus {
+  ongoing
+  completed
+}
+
+// --- MODEL ---
+model Trip {
+  /// Gunakan String @id agar bisa pakai id kustom (mis. "komodo-2025")
+  id           String      @id
+  name         String
+  status       TripStatus
+  description  String
+  startDate    DateTime
+  endDate      DateTime
+  location     String
+  createdAt    DateTime     @default(now())
+
+  // === RELATION BACK (WAJIB) ===
+  schedules   Schedule[] @relation("TripSchedules")
+
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model Schedule {
+  id           String   @id @default(cuid())
+  // FK → Trip
+  tripId       String
+  trip         Trip     @relation("TripSchedules", fields: [tripId], references: [id], onDelete: Cascade)
+
+  day          Int
+  // Frontend kamu pakai string "27 November 2025" & "13.00"
+  // Kita simpan sebagai teks agar 1:1 dengan UI sekarang
+  dateText     String
+  timeText     String
+
+  title        String
+  location     String
+  description  String?
+  isChanged    Boolean  @default(false)
+  isAdditional Boolean  @default(false)
+
+  createdAt    DateTime @default(now())
+
+  @@index([tripId])
+  @@index([tripId, day])
+}
