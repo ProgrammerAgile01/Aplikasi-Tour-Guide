@@ -7,18 +7,28 @@ const UpdateSchema = z.object({
   day: z.coerce.number().int().min(1).optional(),
   dateText: z.string().trim().min(1).optional(),
   timeText: z.string().trim().min(1).optional(),
+  category: z.string().trim().optional().nullable(),
   title: z.string().trim().min(1).optional(),
   location: z.string().trim().min(1).optional(),
+  locationMapUrl: z.string().url().optional().nullable(),
+  hints: z.array(z.string().trim()).optional(),
   description: z.string().trim().optional(),
   isChanged: z.coerce.boolean().optional(),
   isAdditional: z.coerce.boolean().optional(),
 });
 
+function mapUrlFromLocation(loc?: string | null) {
+  if (!loc) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    loc
+  )}`;
+}
+
 export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id?: string }> }
 ) {
-  const { id } = await ctx.params; // ⬅️ penting: await!
+  const { id } = await ctx.params;
   const safeId = id?.trim();
   if (!safeId)
     return NextResponse.json(
@@ -47,7 +57,7 @@ export async function PATCH(
   ctx: { params: Promise<{ id?: string }> }
 ) {
   try {
-    const { id } = await ctx.params; // ⬅️ penting: await!
+    const { id } = await ctx.params;
     const safeId = id?.trim();
     if (!safeId) {
       return NextResponse.json(
@@ -59,9 +69,17 @@ export async function PATCH(
     const json = await req.json();
     const data = UpdateSchema.parse(json);
 
+    // jika location diubah tapi locationMapUrl tidak dikirim, kita auto-generate
+    const dataToSave = {
+      ...data,
+      locationMapUrl:
+        data.locationMapUrl ??
+        (data.location ? mapUrlFromLocation(data.location) : undefined),
+    };
+
     const updated = await prisma.schedule.update({
       where: { id: safeId },
-      data,
+      data: dataToSave,
     });
 
     return NextResponse.json({ ok: true, item: updated });
@@ -89,7 +107,7 @@ export async function DELETE(
   _req: NextRequest,
   ctx: { params: Promise<{ id?: string }> }
 ) {
-  const { id } = await ctx.params; // ⬅️ penting: await!
+  const { id } = await ctx.params;
   const safeId = id?.trim();
   if (!safeId)
     return NextResponse.json(

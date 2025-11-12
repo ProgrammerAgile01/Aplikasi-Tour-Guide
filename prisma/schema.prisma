@@ -33,31 +33,66 @@ model Trip {
 
   // === RELATION BACK (WAJIB) ===
   schedules   Schedule[] @relation("TripSchedules")
+  announcements Announcement[]
+
 
   @@index([status])
   @@index([startDate, endDate])
 }
 
 model Schedule {
-  id           String   @id @default(cuid())
+  id              String   @id @default(cuid())
+
   // FK → Trip
-  tripId       String
-  trip         Trip     @relation("TripSchedules", fields: [tripId], references: [id], onDelete: Cascade)
+  tripId          String
+  trip            Trip     @relation("TripSchedules", fields: [tripId], references: [id], onDelete: Cascade)
 
-  day          Int
-  // Frontend kamu pakai string "27 November 2025" & "13.00"
-  // Kita simpan sebagai teks agar 1:1 dengan UI sekarang
-  dateText     String
-  timeText     String
+  day             Int
+  dateText        String
+  timeText        String
 
-  title        String
-  location     String
-  description  String?
-  isChanged    Boolean  @default(false)
-  isAdditional Boolean  @default(false)
+  // NEW: kategori bebas (input string)
+  category        String?  @db.VarChar(120)
 
-  createdAt    DateTime @default(now())
+  title           String
+
+  // NEW: integrasi gmaps (auto dari location)
+  location        String
+  locationMapUrl  String?  @db.VarChar(512)
+
+  // NEW: petunjuk multi (simpanan JSON array of string)
+  hints           Json?
+
+  description     String?
+  isChanged       Boolean  @default(false)
+  isAdditional    Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
 
   @@index([tripId])
   @@index([tripId, day])
+  @@index([category])
+}
+
+// === Announcements ===
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+}
+
+model Announcement {
+  id        String                @id @default(cuid())
+  tripId    String
+  trip      Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  title     String
+  content   String
+  priority  AnnouncementPriority  @default(NORMAL)
+  isPinned  Boolean               @default(false)
+
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  @@index([tripId])
+  @@index([priority, isPinned])
 }

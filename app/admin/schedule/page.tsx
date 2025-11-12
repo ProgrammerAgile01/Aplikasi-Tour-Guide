@@ -25,8 +25,11 @@ interface ScheduleItem {
   day: number;
   date: string; // UI text
   time: string; // HH:mm (string)
+  category?: string | null;
   title: string;
   location: string;
+  locationMapUrl?: string | null;
+  hints?: string[]; // petunjuk
   description?: string;
   isChanged?: boolean;
   isAdditional?: boolean;
@@ -52,14 +55,11 @@ function formatIdDate(d: Date) {
   });
 }
 
-/** Bangun opsi Hari n - <tanggal> dari rentang tanggal trip */
 function buildDayDateOptions(trip?: Trip) {
   if (!trip?.startDate || !trip?.endDate)
     return [] as Array<{ day: number; dateText: string; label: string }>;
   const start = new Date(trip.startDate);
   const end = new Date(trip.endDate);
-
-  // normalisasi jam agar aman (hindari DST/offset edge)
   start.setHours(12, 0, 0, 0);
   end.setHours(12, 0, 0, 0);
 
@@ -76,6 +76,13 @@ function buildDayDateOptions(trip?: Trip) {
   return days;
 }
 
+function mapUrlFromLocation(loc?: string) {
+  if (!loc) return "";
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    loc
+  )}`;
+}
+
 /* ============================ API HELPERS ============================ */
 
 async function apiGetTrips(): Promise<Trip[]> {
@@ -89,7 +96,7 @@ async function apiGetTrips(): Promise<Trip[]> {
     (t: any) =>
       ["id", "name", "status", "startDate", "endDate"].reduce(
         (o, k) => ({ ...o, [k]: String(t[k]) }),
-        {}
+        {} as any
       ) as Trip
   );
 }
@@ -99,8 +106,11 @@ type ScheduleCreatePayload = {
   day: number;
   dateText: string;
   timeText: string;
+  category?: string | null;
   title: string;
   location: string;
+  locationMapUrl?: string | null;
+  hints?: string[];
   description?: string;
   isChanged?: boolean;
   isAdditional?: boolean;
@@ -121,8 +131,11 @@ async function apiGetSchedules(tripId: string): Promise<ScheduleItem[]> {
     day: Number(s.day),
     date: String(s.dateText),
     time: String(s.timeText ?? ""),
+    category: s.category ?? null,
     title: String(s.title),
     location: String(s.location),
+    locationMapUrl: s.locationMapUrl ?? null,
+    hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
     isAdditional: Boolean(s.isAdditional),
@@ -147,8 +160,11 @@ async function apiCreateSchedule(
     day: Number(s.day),
     date: String(s.dateText),
     time: String(s.timeText ?? ""),
+    category: s.category ?? null,
     title: String(s.title),
     location: String(s.location),
+    locationMapUrl: s.locationMapUrl ?? null,
+    hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
     isAdditional: Boolean(s.isAdditional),
@@ -175,8 +191,11 @@ async function apiUpdateSchedule(
     day: Number(s.day),
     date: String(s.dateText),
     time: String(s.timeText ?? ""),
+    category: s.category ?? null,
     title: String(s.title),
     location: String(s.location),
+    locationMapUrl: s.locationMapUrl ?? null,
+    hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
     isAdditional: Boolean(s.isAdditional),
@@ -213,12 +232,24 @@ export default function AdminSchedulePage() {
     day: 1,
     date: "",
     time: "",
+    category: "" as string,
     title: "",
     location: "",
+    locationMapUrl: "",
+    hints: [] as string[],
     description: "",
     isChanged: false,
     isAdditional: false,
   });
+
+  // auto-generate maps url tiap kali location berubah (di dialog aktif)
+  useEffect(() => {
+    if (!isAddDialogOpen && !editingSchedule) return;
+    setFormData((f) => ({
+      ...f,
+      locationMapUrl: mapUrlFromLocation(f.location),
+    }));
+  }, [formData.location, isAddDialogOpen, editingSchedule]);
 
   // Trips
   useEffect(() => {
@@ -274,18 +305,20 @@ export default function AdminSchedulePage() {
     [trips, selectedTripId]
   );
 
-  /** opsi gabungan Hari - Tanggal */
   const dayDateOptions = useMemo(
     () => buildDayDateOptions(selectedTrip),
     [selectedTrip]
   );
 
-  // Jika dialog add dibuka, set default day/date dari opsi pertama
   useEffect(() => {
     if (!isAddDialogOpen) return;
     if (dayDateOptions.length > 0) {
       const first = dayDateOptions[0];
-      setFormData((f) => ({ ...f, day: first.day, date: first.dateText }));
+      setFormData((f) => ({
+        ...f,
+        day: first.day,
+        date: first.dateText,
+      }));
     }
   }, [isAddDialogOpen, dayDateOptions]);
 
@@ -293,6 +326,23 @@ export default function AdminSchedulePage() {
     () => schedules.filter((s) => s.tripId === selectedTripId),
     [schedules, selectedTripId]
   );
+
+  const handleAddHint = () =>
+    setFormData((f) => ({ ...f, hints: [...f.hints, ""] }));
+
+  const handleChangeHint = (idx: number, value: string) =>
+    setFormData((f) => {
+      const next = [...f.hints];
+      next[idx] = value;
+      return { ...f, hints: next };
+    });
+
+  const handleRemoveHint = (idx: number) =>
+    setFormData((f) => {
+      const next = [...f.hints];
+      next.splice(idx, 1);
+      return { ...f, hints: next };
+    });
 
   const handleAddSchedule = async () => {
     if (!selectedTripId) {
@@ -317,8 +367,11 @@ export default function AdminSchedulePage() {
         day: formData.day,
         dateText: formData.date || "-",
         timeText: formData.time || "-",
+        category: formData.category || null,
         title: formData.title,
         location: formData.location,
+        locationMapUrl: formData.locationMapUrl || undefined,
+        hints: formData.hints.filter(Boolean),
         description: formData.description || undefined,
         isChanged: formData.isChanged,
         isAdditional: formData.isAdditional,
@@ -354,8 +407,11 @@ export default function AdminSchedulePage() {
       day: schedule.day,
       date: schedule.date,
       time: schedule.time,
+      category: schedule.category || "",
       title: schedule.title,
       location: schedule.location,
+      locationMapUrl: mapUrlFromLocation(schedule.location),
+      hints: schedule.hints ?? [],
       description: schedule.description || "",
       isChanged: schedule.isChanged || false,
       isAdditional: schedule.isAdditional || false,
@@ -376,8 +432,11 @@ export default function AdminSchedulePage() {
         day: formData.day,
         dateText: formData.date,
         timeText: formData.time,
+        category: formData.category || null,
         title: formData.title,
         location: formData.location,
+        locationMapUrl: formData.locationMapUrl || undefined,
+        hints: formData.hints.filter(Boolean),
         description: formData.description || undefined,
         isChanged: formData.isChanged,
         isAdditional: formData.isAdditional,
@@ -385,7 +444,7 @@ export default function AdminSchedulePage() {
       setSchedules((cur) =>
         cur.map((s) => (s.id === updated.id ? updated : s))
       );
-      setEditingSchedule(null); // ⬅️ menutup modal karena controlled
+      setEditingSchedule(null);
       resetForm();
       toast({
         title: "Jadwal Diperbarui",
@@ -411,7 +470,7 @@ export default function AdminSchedulePage() {
       return;
     }
     const prev = schedules;
-    setSchedules((cur) => cur.filter((s) => s.id !== id)); // optimistik
+    setSchedules((cur) => cur.filter((s) => s.id !== id));
     try {
       await apiDeleteSchedule(id);
       toast({
@@ -419,7 +478,7 @@ export default function AdminSchedulePage() {
         description: "Jadwal berhasil dihapus dari daftar.",
       });
     } catch (err: any) {
-      setSchedules(prev); // rollback
+      setSchedules(prev);
       toast({
         title: "Gagal Menghapus",
         description: err?.message || "Terjadi kesalahan saat menghapus jadwal.",
@@ -440,8 +499,11 @@ export default function AdminSchedulePage() {
       day: 1,
       date: "",
       time: "",
+      category: "",
       title: "",
       location: "",
+      locationMapUrl: "",
+      hints: [],
       description: "",
       isChanged: false,
       isAdditional: false,
@@ -479,7 +541,7 @@ export default function AdminSchedulePage() {
             Kirim ke Peserta
           </Button>
 
-          {/* ADD dialog (tetap seperti sebelumnya) */}
+          {/* ADD */}
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2" disabled={!selectedTripId}>
@@ -492,7 +554,7 @@ export default function AdminSchedulePage() {
                 <DialogTitle>Tambah Jadwal Baru</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {/* GABUNG: Hari + Tanggal */}
+                {/* Hari + Tanggal */}
                 <div className="space-y-2">
                   <Label>Hari</Label>
                   <select
@@ -520,6 +582,18 @@ export default function AdminSchedulePage() {
                   </select>
                 </div>
 
+                {/* Kategori */}
+                <div className="space-y-2">
+                  <Label>Kategori</Label>
+                  <Input
+                    value={formData.category}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value })
+                    }
+                    placeholder="Contoh: Transportasi / Aktivitas / Makan"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label>Waktu</Label>
                   <Input
@@ -530,6 +604,7 @@ export default function AdminSchedulePage() {
                     }
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Judul Aktivitas</Label>
                   <Input
@@ -540,6 +615,7 @@ export default function AdminSchedulePage() {
                     placeholder="Contoh: Trekking Pulau Komodo"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Lokasi</Label>
                   <Input
@@ -549,7 +625,69 @@ export default function AdminSchedulePage() {
                     }
                     placeholder="Contoh: Pulau Komodo"
                   />
+                  {/* Maps URL (auto) */}
+                  <Input
+                    readOnly
+                    value={formData.locationMapUrl}
+                    placeholder="Tautan Google Maps"
+                  />
+                  {!!formData.locationMapUrl && (
+                    <a
+                      href={formData.locationMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-blue-600 underline"
+                    >
+                      Buka di Google Maps
+                    </a>
+                  )}
                 </div>
+
+                {/* Petunjuk (multi) */}
+                <div className="space-y-2">
+                  <Label>Petunjuk (Opsional)</Label>
+                  <div className="space-y-2">
+                    {formData.hints.map((h, i) => (
+                      <div key={i} className="flex gap-2">
+                        <Input
+                          value={h}
+                          onChange={(e) => {
+                            const next = [...formData.hints];
+                            next[i] = e.target.value;
+                            setFormData({ ...formData, hints: next });
+                          }}
+                          placeholder={`Petunjuk ${i + 1}`}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="bg-transparent"
+                          onClick={() => {
+                            const next = [...formData.hints];
+                            next.splice(i, 1);
+                            setFormData({ ...formData, hints: next });
+                          }}
+                        >
+                          Hapus
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          hints: [...formData.hints, ""],
+                        })
+                      }
+                    >
+                      + Tambah Petunjuk
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Deskripsi (Opsional)</Label>
                   <Textarea
@@ -560,6 +698,7 @@ export default function AdminSchedulePage() {
                     placeholder="Tambahan informasi tentang aktivitas ini..."
                   />
                 </div>
+
                 <div className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Checkbox
@@ -592,6 +731,7 @@ export default function AdminSchedulePage() {
                     </Label>
                   </div>
                 </div>
+
                 <Button onClick={handleAddSchedule} className="w-full">
                   Simpan Jadwal
                 </Button>
@@ -698,13 +838,49 @@ export default function AdminSchedulePage() {
                                   </span>
                                 )}
                               </div>
+
+                              {!!schedule.category && (
+                                <p className="text-xs text-slate-500">
+                                  Kategori: {schedule.category}
+                                </p>
+                              )}
+
                               <h3 className="font-semibold text-slate-900">
                                 {schedule.title}
                               </h3>
+
                               <div className="flex items-center gap-2 text-sm text-slate-600">
                                 <MapPin size={14} />
                                 {schedule.location}
                               </div>
+
+                              {/* ====== PERUBAHAN: tombol Maps lebar ====== */}
+                              {schedule.locationMapUrl && (
+                                <Button
+                                  asChild
+                                  className="mt-2 w-full justify-center"
+                                >
+                                  <a
+                                    href={schedule.locationMapUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    aria-label="Lihat lokasi di Google Maps"
+                                    className="inline-flex items-center gap-2"
+                                  >
+                                    <MapPin size={16} />
+                                    Lihat Lokasi di Google Maps
+                                  </a>
+                                </Button>
+                              )}
+                              {/* ========================================== */}
+
+                              {schedule.hints && schedule.hints.length > 0 && (
+                                <ul className="list-disc pl-5 text-sm text-slate-600">
+                                  {schedule.hints.map((h, i) => (
+                                    <li key={i}>{h}</li>
+                                  ))}
+                                </ul>
+                              )}
                               {schedule.description && (
                                 <p className="text-sm text-slate-600">
                                   {schedule.description}
@@ -713,7 +889,6 @@ export default function AdminSchedulePage() {
                             </div>
 
                             <div className="flex gap-2">
-                              {/* Tombol Edit -> set state; dialog edit dikontrol global */}
                               <Button
                                 variant="outline"
                                 size="icon"
@@ -722,7 +897,6 @@ export default function AdminSchedulePage() {
                                 <Edit2 size={16} />
                               </Button>
 
-                              {/* Dialog Hapus terkontrol */}
                               <Dialog
                                 open={!!confirmDeleteId}
                                 onOpenChange={(o) =>
@@ -790,7 +964,7 @@ export default function AdminSchedulePage() {
         </Card>
       )}
 
-      {/* ===== Dialog EDIT terkontrol secara global ===== */}
+      {/* Dialog EDIT global */}
       <Dialog
         open={!!editingSchedule}
         onOpenChange={(open) => {
@@ -805,7 +979,6 @@ export default function AdminSchedulePage() {
             <DialogTitle>Edit Jadwal</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Hari + Tanggal (gabung) */}
             <div className="space-y-2">
               <Label>Hari</Label>
               <select
@@ -830,16 +1003,24 @@ export default function AdminSchedulePage() {
               </select>
             </div>
 
+            {/* Kategori */}
+            <div className="space-y-2">
+              <Label>Kategori (Opsional)</Label>
+              <Input
+                value={formData.category}
+                onChange={(e) =>
+                  setFormData({ ...formData, category: e.target.value })
+                }
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Waktu</Label>
               <Input
                 type="time"
                 value={formData.time}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    time: e.target.value,
-                  })
+                  setFormData({ ...formData, time: e.target.value })
                 }
               />
             </div>
@@ -848,34 +1029,84 @@ export default function AdminSchedulePage() {
               <Input
                 value={formData.title}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    title: e.target.value,
-                  })
+                  setFormData({ ...formData, title: e.target.value })
                 }
               />
             </div>
+
             <div className="space-y-2">
               <Label>Lokasi</Label>
               <Input
                 value={formData.location}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    location: e.target.value,
-                  })
+                  setFormData({ ...formData, location: e.target.value })
                 }
               />
+              <Input
+                readOnly
+                value={formData.locationMapUrl}
+                placeholder="Tautan Google Maps"
+              />
+              {!!formData.locationMapUrl && (
+                <a
+                  href={formData.locationMapUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-blue-600 underline"
+                >
+                  Buka di Google Maps
+                </a>
+              )}
             </div>
+
+            {/* Petunjuk multi */}
+            <div className="space-y-2">
+              <Label>Petunjuk (Opsional)</Label>
+              <div className="space-y-2">
+                {formData.hints.map((h, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input
+                      value={h}
+                      onChange={(e) => {
+                        const next = [...formData.hints];
+                        next[i] = e.target.value;
+                        setFormData({ ...formData, hints: next });
+                      }}
+                      placeholder={`Petunjuk ${i + 1}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => {
+                        const next = [...formData.hints];
+                        next.splice(i, 1);
+                        setFormData({ ...formData, hints: next });
+                      }}
+                    >
+                      Hapus
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-transparent"
+                  onClick={() =>
+                    setFormData({ ...formData, hints: [...formData.hints, ""] })
+                  }
+                >
+                  + Tambah Petunjuk
+                </Button>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Deskripsi</Label>
               <Textarea
                 value={formData.description}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    description: e.target.value,
-                  })
+                  setFormData({ ...formData, description: e.target.value })
                 }
               />
             </div>
@@ -900,10 +1131,7 @@ export default function AdminSchedulePage() {
                   id="edit-isChanged"
                   checked={formData.isChanged}
                   onCheckedChange={(checked) =>
-                    setFormData({
-                      ...formData,
-                      isChanged: checked as boolean,
-                    })
+                    setFormData({ ...formData, isChanged: checked as boolean })
                   }
                 />
                 <Label htmlFor="edit-isChanged" className="font-normal">
@@ -917,7 +1145,6 @@ export default function AdminSchedulePage() {
           </div>
         </DialogContent>
       </Dialog>
-      {/* ===== end dialog edit ===== */}
     </div>
   );
 }

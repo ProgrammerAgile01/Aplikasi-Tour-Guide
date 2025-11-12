@@ -8,12 +8,22 @@ const CreateSchema = z.object({
   day: z.coerce.number().int().min(1),
   dateText: z.string().trim().min(1),
   timeText: z.string().trim().min(1),
+  category: z.string().trim().optional().nullable(),
   title: z.string().trim().min(1),
   location: z.string().trim().min(1),
+  locationMapUrl: z.string().url().optional().nullable(),
+  hints: z.array(z.string().trim()).optional(),
   description: z.string().trim().optional(),
   isChanged: z.coerce.boolean().optional().default(false),
   isAdditional: z.coerce.boolean().optional().default(false),
 });
+
+function mapUrlFromLocation(loc?: string | null) {
+  if (!loc) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    loc
+  )}`;
+}
 
 export async function GET(req: Request) {
   try {
@@ -41,6 +51,7 @@ export async function GET(req: Request) {
               { location: { contains: q, mode: "insensitive" } },
               { dateText: { contains: q, mode: "insensitive" } },
               { timeText: { contains: q, mode: "insensitive" } },
+              { category: { contains: q, mode: "insensitive" } },
             ],
           }
         : {}),
@@ -75,7 +86,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = CreateSchema.parse(body);
 
-    // Pastikan trip ada
     const trip = await prisma.trip.findUnique({ where: { id: data.tripId } });
     if (!trip) {
       return NextResponse.json(
@@ -90,8 +100,12 @@ export async function POST(req: Request) {
         day: data.day,
         dateText: data.dateText,
         timeText: data.timeText,
+        category: data.category ?? null,
         title: data.title,
         location: data.location,
+        locationMapUrl:
+          data.locationMapUrl ?? mapUrlFromLocation(data.location),
+        hints: data.hints && data.hints.length ? data.hints : undefined,
         description: data.description,
         isChanged: data.isChanged,
         isAdditional: data.isAdditional,
