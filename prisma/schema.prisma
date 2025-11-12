@@ -22,19 +22,19 @@ enum TripStatus {
 // --- MODEL ---
 model Trip {
   /// Gunakan String @id agar bisa pakai id kustom (mis. "komodo-2025")
-  id           String      @id
-  name         String
-  status       TripStatus
-  description  String
-  startDate    DateTime
-  endDate      DateTime
-  location     String
-  createdAt    DateTime     @default(now())
+  id          String     @id
+  name        String
+  status      TripStatus
+  description String
+  startDate   DateTime
+  endDate     DateTime
+  location    String
+  createdAt   DateTime   @default(now())
 
   // === RELATION BACK (WAJIB) ===
   schedules   Schedule[] @relation("TripSchedules")
   announcements Announcement[]
-
+  participants Participant[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -95,4 +95,19 @@ model Announcement {
 
   @@index([tripId])
   @@index([priority, isPinned])
+}
+
+model Participant {
+  id            String   @id @default(cuid())
+  name          String
+  whatsapp      String
+  address       String
+  lastCheckIn   String? // simpan string agar cocok dengan UI (mis. "Pulau Komodo - 10:15")
+  totalCheckIns Int      @default(0)
+  tripId        String
+  trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@index([tripId])
+  @@index([whatsapp])
 }
