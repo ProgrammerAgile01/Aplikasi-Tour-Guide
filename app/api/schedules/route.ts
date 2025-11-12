@@ -12,17 +12,30 @@ const CreateSchema = z.object({
   title: z.string().trim().min(1),
   location: z.string().trim().min(1),
   locationMapUrl: z.string().url().optional().nullable(),
+  locationLat: z.coerce.number().optional().nullable(),
+  locationLon: z.coerce.number().optional().nullable(),
   hints: z.array(z.string().trim()).optional(),
   description: z.string().trim().optional(),
   isChanged: z.coerce.boolean().optional().default(false),
   isAdditional: z.coerce.boolean().optional().default(false),
 });
 
-function mapUrlFromLocation(loc?: string | null) {
-  if (!loc) return null;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    loc
-  )}`;
+// === Util OSM ===
+function clampZoom(z?: number) {
+  const n = Math.floor(Number.isFinite(z as number) ? (z as number) : 17);
+  return Math.min(19, Math.max(1, n || 17));
+}
+function toFixed6(n: number) {
+  return Number(n).toFixed(6);
+}
+function osmPermalink(lat: number, lon: number, zoom = 17) {
+  const z = clampZoom(zoom);
+  const la = toFixed6(lat);
+  const lo = toFixed6(lon);
+  return `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=${z}/${la}/${lo}`;
+}
+function osmSearchUrl(q: string) {
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
 }
 
 export async function GET(req: Request) {
@@ -41,7 +54,7 @@ export async function GET(req: Request) {
     const take = Number(searchParams.get("take") ?? 200);
     const skip = Number(searchParams.get("skip") ?? 0);
 
-    const where = {
+    const where: any = {
       tripId,
       ...(day ? { day: Number(day) || undefined } : {}),
       ...(q
@@ -94,6 +107,13 @@ export async function POST(req: Request) {
       );
     }
 
+    // fallback URL yang benar
+    const fallbackUrl =
+      typeof data.locationLat === "number" &&
+      typeof data.locationLon === "number"
+        ? osmPermalink(data.locationLat, data.locationLon, 17)
+        : osmSearchUrl(data.location);
+
     const created = await prisma.schedule.create({
       data: {
         tripId: data.tripId,
@@ -103,8 +123,11 @@ export async function POST(req: Request) {
         category: data.category ?? null,
         title: data.title,
         location: data.location,
-        locationMapUrl:
-          data.locationMapUrl ?? mapUrlFromLocation(data.location),
+        locationMapUrl: data.locationMapUrl ?? fallbackUrl,
+        locationLat:
+          typeof data.locationLat === "number" ? data.locationLat : null,
+        locationLon:
+          typeof data.locationLon === "number" ? data.locationLon : null,
         hints: data.hints && data.hints.length ? data.hints : undefined,
         description: data.description,
         isChanged: data.isChanged,

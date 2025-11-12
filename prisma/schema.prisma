@@ -48,30 +48,38 @@ model Schedule {
   trip            Trip     @relation("TripSchedules", fields: [tripId], references: [id], onDelete: Cascade)
 
   day             Int
-  dateText        String
-  timeText        String
+  dateText        String    @db.VarChar(64)   // text tanggal tampilan
+  timeText        String    @db.VarChar(16)   // "HH:mm" atau sejenis
 
-  // NEW: kategori bebas (input string)
-  category        String?  @db.VarChar(120)
+  // kategori bebas (input string)
+  category        String?   @db.VarChar(120)
 
   title           String
 
-  // NEW: integrasi gmaps (auto dari location)
-  location        String
-  locationMapUrl  String?  @db.VarChar(512)
+  // teks lokasi + tautan peta (sekarang OSM)
+  location        String    @db.VarChar(255)
+  locationMapUrl  String?   @db.VarChar(512)
 
-  // NEW: petunjuk multi (simpanan JSON array of string)
+  // ✅ NEW: koordinat hasil pick di peta (opsional)
+  // gunakan Decimal untuk akurasi 7 digit (≈1.1 cm)
+  locationLat     Decimal?  @db.Decimal(10, 7)
+  locationLon     Decimal?  @db.Decimal(10, 7)
+
+  // petunjuk multi (JSON array of string)
   hints           Json?
 
   description     String?
-  isChanged       Boolean  @default(false)
-  isAdditional    Boolean  @default(false)
+  isChanged       Boolean   @default(false)
+  isAdditional    Boolean   @default(false)
 
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
 
   @@index([tripId])
   @@index([tripId, day])
+  @@index([tripId, day, timeText])          // bantu sorting jadwal harian
   @@index([category])
+  @@index([locationLat, locationLon])       // query berdasar radius/koordinat
 }
 
 // === Announcements ===

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import "leaflet/dist/leaflet.css";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,38 +18,41 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Edit2, Trash2, Send, Clock, MapPin } from "lucide-react";
+import { Plus, Edit2, Trash2, Send, Clock, MapPin, Map } from "lucide-react";
+
+const LeafletMap = dynamic(
+  () => import("./leaflet-picker").then((m) => m.LeafletPicker),
+  { ssr: false }
+);
 
 /* ============================ TYPES ============================ */
-
 interface ScheduleItem {
   id: string;
   tripId: string;
   day: number;
-  date: string; // UI text
-  time: string; // HH:mm (string)
+  date: string;
+  time: string;
   category?: string | null;
   title: string;
   location: string;
   locationMapUrl?: string | null;
-  hints?: string[]; // petunjuk
+  locationLat?: number | null;
+  locationLon?: number | null;
+  hints?: string[];
   description?: string;
   isChanged?: boolean;
   isAdditional?: boolean;
 }
-
 type TripStatus = "ongoing" | "completed";
-
 interface Trip {
   id: string;
   name: string;
   status: TripStatus;
-  startDate: string; // ISO
-  endDate: string; // ISO
+  startDate: string;
+  endDate: string;
 }
 
 /* ============================ UTILS ============================ */
-
 function formatIdDate(d: Date) {
   return d.toLocaleDateString("id-ID", {
     day: "2-digit",
@@ -54,7 +60,6 @@ function formatIdDate(d: Date) {
     year: "numeric",
   });
 }
-
 function buildDayDateOptions(trip?: Trip) {
   if (!trip?.startDate || !trip?.endDate)
     return [] as Array<{ day: number; dateText: string; label: string }>;
@@ -62,7 +67,6 @@ function buildDayDateOptions(trip?: Trip) {
   const end = new Date(trip.endDate);
   start.setHours(12, 0, 0, 0);
   end.setHours(12, 0, 0, 0);
-
   const days: Array<{ day: number; dateText: string; label: string }> = [];
   let idx = 1;
   for (
@@ -76,15 +80,50 @@ function buildDayDateOptions(trip?: Trip) {
   return days;
 }
 
-function mapUrlFromLocation(loc?: string) {
-  if (!loc) return "";
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    loc
-  )}`;
+// === Util OSM (permalink & parser yang stabil) ===
+function clampZoom(z?: number) {
+  const n = Math.floor(Number.isFinite(z as number) ? (z as number) : 17);
+  return Math.min(19, Math.max(1, n || 17));
+}
+function toFixed6(n: number) {
+  return Number(n).toFixed(6);
+}
+function osmPermalink(lat: number, lon: number, zoom = 17) {
+  const z = clampZoom(zoom);
+  const la = toFixed6(lat);
+  const lo = toFixed6(lon);
+  return `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=${z}/${la}/${lo}`;
+}
+function osmSearchUrl(q: string) {
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(q)}`;
+}
+function parseLatLonFromOsmUrl(url?: string | null): {
+  lat?: number;
+  lon?: number;
+} {
+  if (!url) return {};
+  try {
+    const u = new URL(url);
+    const mlat = u.searchParams.get("mlat");
+    const mlon = u.searchParams.get("mlon");
+    if (mlat && mlon) {
+      const lat = parseFloat(mlat);
+      const lon = parseFloat(mlon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    }
+    if (u.hash.startsWith("#map=")) {
+      const parts = u.hash.replace("#map=", "").split("/");
+      if (parts.length >= 3) {
+        const lat = parseFloat(parts[1]);
+        const lon = parseFloat(parts[2]);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+      }
+    }
+  } catch {}
+  return {};
 }
 
 /* ============================ API HELPERS ============================ */
-
 async function apiGetTrips(): Promise<Trip[]> {
   const url = new URL("/api/trips", window.location.origin);
   url.searchParams.set("take", "200");
@@ -110,6 +149,8 @@ type ScheduleCreatePayload = {
   title: string;
   location: string;
   locationMapUrl?: string | null;
+  locationLat?: number | null;
+  locationLon?: number | null;
   hints?: string[];
   description?: string;
   isChanged?: boolean;
@@ -135,6 +176,14 @@ async function apiGetSchedules(tripId: string): Promise<ScheduleItem[]> {
     title: String(s.title),
     location: String(s.location),
     locationMapUrl: s.locationMapUrl ?? null,
+    locationLat:
+      s.locationLat !== null && s.locationLat !== undefined
+        ? Number(s.locationLat)
+        : null,
+    locationLon:
+      s.locationLon !== null && s.locationLon !== undefined
+        ? Number(s.locationLon)
+        : null,
     hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
@@ -164,6 +213,14 @@ async function apiCreateSchedule(
     title: String(s.title),
     location: String(s.location),
     locationMapUrl: s.locationMapUrl ?? null,
+    locationLat:
+      s.locationLat !== null && s.locationLat !== undefined
+        ? Number(s.locationLat)
+        : null,
+    locationLon:
+      s.locationLon !== null && s.locationLon !== undefined
+        ? Number(s.locationLon)
+        : null,
     hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
@@ -195,6 +252,14 @@ async function apiUpdateSchedule(
     title: String(s.title),
     location: String(s.location),
     locationMapUrl: s.locationMapUrl ?? null,
+    locationLat:
+      s.locationLat !== null && s.locationLat !== undefined
+        ? Number(s.locationLat)
+        : null,
+    locationLon:
+      s.locationLon !== null && s.locationLon !== undefined
+        ? Number(s.locationLon)
+        : null,
     hints: Array.isArray(s.hints) ? (s.hints as string[]) : undefined,
     description: s.description ? String(s.description) : "",
     isChanged: Boolean(s.isChanged),
@@ -213,7 +278,6 @@ async function apiDeleteSchedule(id: string) {
 }
 
 /* ============================ PAGE ============================ */
-
 export default function AdminSchedulePage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>("");
@@ -236,20 +300,29 @@ export default function AdminSchedulePage() {
     title: "",
     location: "",
     locationMapUrl: "",
+    locationLat: null as number | null,
+    locationLon: null as number | null,
     hints: [] as string[],
     description: "",
     isChanged: false,
     isAdditional: false,
   });
 
-  // auto-generate maps url tiap kali location berubah (di dialog aktif)
-  useEffect(() => {
-    if (!isAddDialogOpen && !editingSchedule) return;
-    setFormData((f) => ({
-      ...f,
-      locationMapUrl: mapUrlFromLocation(f.location),
-    }));
-  }, [formData.location, isAddDialogOpen, editingSchedule]);
+  // Picker
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCenter, setPickerCenter] = useState<{
+    lat: number;
+    lon: number;
+  }>({ lat: -6.2, lon: 106.816666 });
+  const [pickedLatLon, setPickedLatLon] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
+  const pickedManuallyRef = useRef(false);
+
+  // === anti-race untuk geocode ===
+  const geocodeAbortRef = useRef<AbortController | null>(null);
+  const geocodeReqIdRef = useRef(0);
 
   // Trips
   useEffect(() => {
@@ -277,7 +350,7 @@ export default function AdminSchedulePage() {
     };
   }, []);
 
-  // Schedules when trip changes
+  // Schedules
   useEffect(() => {
     if (!selectedTripId) {
       setSchedules([]);
@@ -304,7 +377,6 @@ export default function AdminSchedulePage() {
     () => trips.find((t) => t.id === selectedTripId),
     [trips, selectedTripId]
   );
-
   const dayDateOptions = useMemo(
     () => buildDayDateOptions(selectedTrip),
     [selectedTrip]
@@ -314,11 +386,7 @@ export default function AdminSchedulePage() {
     if (!isAddDialogOpen) return;
     if (dayDateOptions.length > 0) {
       const first = dayDateOptions[0];
-      setFormData((f) => ({
-        ...f,
-        day: first.day,
-        date: first.dateText,
-      }));
+      setFormData((f) => ({ ...f, day: first.day, date: first.dateText }));
     }
   }, [isAddDialogOpen, dayDateOptions]);
 
@@ -327,16 +395,96 @@ export default function AdminSchedulePage() {
     [schedules, selectedTripId]
   );
 
+  // === Auto-geocode (anti-race + bias Indonesia) ===
+  useEffect(() => {
+    // aktif saat add/edit dialog terbuka
+    if (!isAddDialogOpen && !editingSchedule) return;
+
+    const q = formData.location.trim();
+    if (!q) return;
+
+    // jangan override kalau user pilih manual dari peta
+    if (pickedManuallyRef.current) return;
+
+    // siapkan request id + abort sebelumnya
+    geocodeReqIdRef.current += 1;
+    const reqId = geocodeReqIdRef.current;
+    geocodeAbortRef.current?.abort();
+    const controller = new AbortController();
+    geocodeAbortRef.current = controller;
+
+    (async () => {
+      try {
+        const u = new URL("/api/osm/geocode", window.location.origin);
+        u.searchParams.set("q", q);
+
+        // kirim 'near' untuk preferensi area (pakai center sekarang / titik terakhir)
+        const nearLat =
+          typeof formData.locationLat === "number"
+            ? formData.locationLat
+            : pickerCenter.lat;
+        const nearLon =
+          typeof formData.locationLon === "number"
+            ? formData.locationLon
+            : pickerCenter.lon;
+        u.searchParams.set("near", `${nearLat},${nearLon}`);
+
+        const res = await fetch(u.toString(), {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const json = await res.json();
+
+        // jangan terapkan kalau sudah ada request yang lebih baru
+        if (reqId !== geocodeReqIdRef.current) return;
+
+        if (json?.ok && json.found) {
+          const lat = Number(json.lat);
+          const lon = Number(json.lon);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            setFormData((f) => ({
+              ...f,
+              locationLat: lat,
+              locationLon: lon,
+              locationMapUrl: osmPermalink(lat, lon, 17),
+            }));
+            return;
+          }
+        }
+        // fallback → tetap isi search url agar linknya relevan
+        setFormData((f) => ({
+          ...f,
+          locationLat: null,
+          locationLon: null,
+          locationMapUrl: osmSearchUrl(q),
+        }));
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+        // fallback diam-diam
+        setFormData((f) => ({
+          ...f,
+          locationLat: null,
+          locationLon: null,
+          locationMapUrl: osmSearchUrl(q),
+        }));
+      }
+    })();
+
+    // cleanup
+    return () => {
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.location, isAddDialogOpen, editingSchedule]);
+
   const handleAddHint = () =>
     setFormData((f) => ({ ...f, hints: [...f.hints, ""] }));
-
   const handleChangeHint = (idx: number, value: string) =>
     setFormData((f) => {
       const next = [...f.hints];
       next[idx] = value;
       return { ...f, hints: next };
     });
-
   const handleRemoveHint = (idx: number) =>
     setFormData((f) => {
       const next = [...f.hints];
@@ -371,6 +519,8 @@ export default function AdminSchedulePage() {
         title: formData.title,
         location: formData.location,
         locationMapUrl: formData.locationMapUrl || undefined,
+        locationLat: formData.locationLat ?? undefined,
+        locationLon: formData.locationLon ?? undefined,
         hints: formData.hints.filter(Boolean),
         description: formData.description || undefined,
         isChanged: formData.isChanged,
@@ -403,6 +553,15 @@ export default function AdminSchedulePage() {
       return;
     }
     setEditingSchedule(schedule);
+    const center =
+      schedule.locationLat && schedule.locationLon
+        ? { lat: schedule.locationLat, lon: schedule.locationLon }
+        : parseLatLonFromOsmUrl(schedule.locationMapUrl || "");
+    setPickerCenter({
+      lat: (center as any).lat ?? -6.2,
+      lon: (center as any).lon ?? 106.816666,
+    });
+    pickedManuallyRef.current = false;
     setFormData({
       day: schedule.day,
       date: schedule.date,
@@ -410,7 +569,12 @@ export default function AdminSchedulePage() {
       category: schedule.category || "",
       title: schedule.title,
       location: schedule.location,
-      locationMapUrl: mapUrlFromLocation(schedule.location),
+      locationMapUrl:
+        schedule.locationLat != null && schedule.locationLon != null
+          ? osmPermalink(schedule.locationLat, schedule.locationLon, 17)
+          : schedule.locationMapUrl || osmSearchUrl(schedule.location),
+      locationLat: schedule.locationLat ?? null,
+      locationLon: schedule.locationLon ?? null,
       hints: schedule.hints ?? [],
       description: schedule.description || "",
       isChanged: schedule.isChanged || false,
@@ -436,6 +600,8 @@ export default function AdminSchedulePage() {
         title: formData.title,
         location: formData.location,
         locationMapUrl: formData.locationMapUrl || undefined,
+        locationLat: formData.locationLat ?? undefined,
+        locationLon: formData.locationLon ?? undefined,
         hints: formData.hints.filter(Boolean),
         description: formData.description || undefined,
         isChanged: formData.isChanged,
@@ -503,11 +669,16 @@ export default function AdminSchedulePage() {
       title: "",
       location: "",
       locationMapUrl: "",
+      locationLat: null,
+      locationLon: null,
       hints: [],
       description: "",
       isChanged: false,
       isAdditional: false,
     });
+    setPickedLatLon(null);
+    pickedManuallyRef.current = false;
+    geocodeAbortRef.current?.abort();
   };
 
   const schedulesByDay = useMemo(() => {
@@ -554,7 +725,7 @@ export default function AdminSchedulePage() {
                 <DialogTitle>Tambah Jadwal Baru</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {/* Hari + Tanggal */}
+                {/* Hari */}
                 <div className="space-y-2">
                   <Label>Hari</Label>
                   <select
@@ -620,17 +791,39 @@ export default function AdminSchedulePage() {
                   <Label>Lokasi</Label>
                   <Input
                     value={formData.location}
-                    onChange={(e) =>
-                      setFormData({ ...formData, location: e.target.value })
-                    }
-                    placeholder="Contoh: Pulau Komodo"
+                    onChange={(e) => {
+                      pickedManuallyRef.current = false;
+                      setFormData({ ...formData, location: e.target.value });
+                    }}
+                    placeholder="Contoh: Komodo Airport"
                   />
-                  {/* Maps URL (auto) */}
-                  <Input
-                    readOnly
-                    value={formData.locationMapUrl}
-                    placeholder="Tautan Google Maps"
-                  />
+
+                  {/* URL + tombol peta */}
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={formData.locationMapUrl}
+                      placeholder="Tautan OpenStreetMap"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => {
+                        const center = parseLatLonFromOsmUrl(
+                          formData.locationMapUrl
+                        );
+                        setPickerCenter({
+                          lat: center.lat ?? -6.2,
+                          lon: center.lon ?? 106.816666,
+                        });
+                        setPickerOpen(true);
+                      }}
+                      title="Ambil Lokasi dari Peta"
+                    >
+                      <Map size={16} />
+                    </Button>
+                  </div>
                   {!!formData.locationMapUrl && (
                     <a
                       href={formData.locationMapUrl}
@@ -638,12 +831,27 @@ export default function AdminSchedulePage() {
                       rel="noreferrer"
                       className="text-sm text-blue-600 underline"
                     >
-                      Buka di Google Maps
+                      Buka di OpenStreetMap
                     </a>
                   )}
+                  {(() => {
+                    const p = parseLatLonFromOsmUrl(formData.locationMapUrl);
+                    return typeof p.lat === "number" &&
+                      typeof p.lon === "number" ? (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Titik: {p.lat.toFixed(6)}, {p.lon.toFixed(6)}
+                      </p>
+                    ) : formData.locationLat != null &&
+                      formData.locationLon != null ? (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Titik: {formData.locationLat.toFixed(6)},{" "}
+                        {formData.locationLon.toFixed(6)}
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
 
-                {/* Petunjuk (multi) */}
+                {/* Petunjuk */}
                 <div className="space-y-2">
                   <Label>Petunjuk (Opsional)</Label>
                   <div className="space-y-2">
@@ -736,6 +944,70 @@ export default function AdminSchedulePage() {
                   Simpan Jadwal
                 </Button>
               </div>
+
+              {/* Picker (Add) */}
+              <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+                <DialogContent className="max-w-3xl">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Pilih Titik Lokasi (OpenStreetMap)
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="h-[420px] w-full rounded-md overflow-hidden border">
+                      <LeafletMap
+                        center={[pickerCenter.lat, pickerCenter.lon]}
+                        zoom={12}
+                        onPick={(lat, lon) => setPickedLatLon({ lat, lon })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-slate-600">
+                        {pickedLatLon ? (
+                          <>
+                            Titik dipilih: {pickedLatLon.lat.toFixed(6)},{" "}
+                            {pickedLatLon.lon.toFixed(6)}
+                          </>
+                        ) : (
+                          <>Klik pada peta untuk memilih titik.</>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          className="bg-transparent"
+                          onClick={() => {
+                            setPickedLatLon(null);
+                            setPickerOpen(false);
+                          }}
+                        >
+                          Batal
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (!pickedLatLon) return;
+                            pickedManuallyRef.current = true;
+                            const url = osmPermalink(
+                              pickedLatLon.lat,
+                              pickedLatLon.lon,
+                              17
+                            );
+                            setFormData((f) => ({
+                              ...f,
+                              locationMapUrl: url,
+                              locationLat: pickedLatLon.lat,
+                              locationLon: pickedLatLon.lon,
+                            }));
+                            setPickerOpen(false);
+                          }}
+                        >
+                          Gunakan Titik Ini
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </DialogContent>
           </Dialog>
         </div>
@@ -765,7 +1037,7 @@ export default function AdminSchedulePage() {
         </CardContent>
       </Card>
 
-      {/* Schedule List by Day */}
+      {/* Schedule List */}
       {selectedTripId ? (
         <div className="space-y-6">
           {loadingSchedules ? (
@@ -813,141 +1085,153 @@ export default function AdminSchedulePage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {daySchedules.map((schedule) => (
-                        <div
-                          key={schedule.id}
-                          className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2 text-blue-600">
-                                  <Clock size={16} />
-                                  <span className="font-semibold">
-                                    {schedule.time}
-                                  </span>
+                      {daySchedules.map((schedule) => {
+                        const osmUrl =
+                          typeof schedule.locationLat === "number" &&
+                          typeof schedule.locationLon === "number"
+                            ? osmPermalink(
+                                schedule.locationLat,
+                                schedule.locationLon,
+                                17
+                              )
+                            : schedule.locationMapUrl ||
+                              osmSearchUrl(schedule.location);
+
+                        return (
+                          <div
+                            key={schedule.id}
+                            className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center gap-2 text-blue-600">
+                                    <Clock size={16} />
+                                    <span className="font-semibold">
+                                      {schedule.time}
+                                    </span>
+                                  </div>
+                                  {schedule.isChanged && (
+                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                      Perubahan
+                                    </span>
+                                  )}
+                                  {schedule.isAdditional && (
+                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                      Tambahan
+                                    </span>
+                                  )}
                                 </div>
-                                {schedule.isChanged && (
-                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                                    Perubahan
-                                  </span>
-                                )}
-                                {schedule.isAdditional && (
-                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                                    Tambahan
-                                  </span>
-                                )}
-                              </div>
 
-                              {!!schedule.category && (
-                                <p className="text-xs text-slate-500">
-                                  Kategori: {schedule.category}
-                                </p>
-                              )}
-
-                              <h3 className="font-semibold text-slate-900">
-                                {schedule.title}
-                              </h3>
-
-                              <div className="flex items-center gap-2 text-sm text-slate-600">
-                                <MapPin size={14} />
-                                {schedule.location}
-                              </div>
-
-                              {/* ====== PERUBAHAN: tombol Maps lebar ====== */}
-                              {schedule.locationMapUrl && (
-                                <Button
-                                  asChild
-                                  className="mt-2 w-full justify-center"
-                                >
-                                  <a
-                                    href={schedule.locationMapUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    aria-label="Lihat lokasi di Google Maps"
-                                    className="inline-flex items-center gap-2"
-                                  >
-                                    <MapPin size={16} />
-                                    Lihat Lokasi di Google Maps
-                                  </a>
-                                </Button>
-                              )}
-                              {/* ========================================== */}
-
-                              {schedule.hints && schedule.hints.length > 0 && (
-                                <ul className="list-disc pl-5 text-sm text-slate-600">
-                                  {schedule.hints.map((h, i) => (
-                                    <li key={i}>{h}</li>
-                                  ))}
-                                </ul>
-                              )}
-                              {schedule.description && (
-                                <p className="text-sm text-slate-600">
-                                  {schedule.description}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => handleEditSchedule(schedule)}
-                              >
-                                <Edit2 size={16} />
-                              </Button>
-
-                              <Dialog
-                                open={!!confirmDeleteId}
-                                onOpenChange={(o) =>
-                                  !o && setConfirmDeleteId(null)
-                                }
-                              >
-                                <DialogTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    onClick={() =>
-                                      setConfirmDeleteId(schedule.id)
-                                    }
-                                  >
-                                    <Trash2 size={16} />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-sm">
-                                  <DialogHeader>
-                                    <DialogTitle>Hapus Jadwal?</DialogTitle>
-                                  </DialogHeader>
-                                  <p className="text-slate-600">
-                                    Tindakan ini tidak bisa dibatalkan. Yakin
-                                    ingin menghapus jadwal ini?
+                                {!!schedule.category && (
+                                  <p className="text-xs text-slate-500">
+                                    Kategori: {schedule.category}
                                   </p>
-                                  <div className="mt-4 flex gap-2">
+                                )}
+
+                                <h3 className="font-semibold text-slate-900">
+                                  {schedule.title}
+                                </h3>
+
+                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                  <MapPin size={14} />
+                                  {schedule.location}
+                                </div>
+
+                                {osmUrl && (
+                                  <Button
+                                    asChild
+                                    className="mt-2 w-full justify-center"
+                                  >
+                                    <a
+                                      href={osmUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      aria-label="Lihat lokasi di OpenStreetMap"
+                                      className="inline-flex items-center gap-2"
+                                    >
+                                      <MapPin size={16} />
+                                      Lihat Lokasi di OpenStreetMap
+                                    </a>
+                                  </Button>
+                                )}
+
+                                {schedule.hints &&
+                                  schedule.hints.length > 0 && (
+                                    <ul className="list-disc pl-5 text-sm text-slate-600">
+                                      {schedule.hints.map((h, i) => (
+                                        <li key={i}>{h}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                {schedule.description && (
+                                  <p className="text-sm text-slate-600">
+                                    {schedule.description}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  onClick={() => handleEditSchedule(schedule)}
+                                >
+                                  <Edit2 size={16} />
+                                </Button>
+
+                                <Dialog
+                                  open={!!confirmDeleteId}
+                                  onOpenChange={(o) =>
+                                    !o && setConfirmDeleteId(null)
+                                  }
+                                >
+                                  <DialogTrigger asChild>
                                     <Button
                                       variant="outline"
-                                      className="bg-transparent flex-1"
-                                      onClick={() => setConfirmDeleteId(null)}
+                                      size="icon"
+                                      onClick={() =>
+                                        setConfirmDeleteId(schedule.id)
+                                      }
                                     >
-                                      Batal
+                                      <Trash2 size={16} />
                                     </Button>
-                                    <Button
-                                      className="flex-1"
-                                      onClick={async () => {
-                                        const id = confirmDeleteId;
-                                        setConfirmDeleteId(null);
-                                        if (!id) return;
-                                        await handleDeleteSchedule(id);
-                                      }}
-                                    >
-                                      Hapus
-                                    </Button>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-sm">
+                                    <DialogHeader>
+                                      <DialogTitle>Hapus Jadwal?</DialogTitle>
+                                    </DialogHeader>
+                                    <p className="text-slate-600">
+                                      Tindakan ini tidak bisa dibatalkan. Yakin
+                                      ingin menghapus jadwal ini?
+                                    </p>
+                                    <div className="mt-4 flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        className="bg-transparent flex-1"
+                                        onClick={() => setConfirmDeleteId(null)}
+                                      >
+                                        Batal
+                                      </Button>
+                                      <Button
+                                        className="flex-1"
+                                        onClick={async () => {
+                                          const id = confirmDeleteId;
+                                          setConfirmDeleteId(null);
+                                          if (!id) return;
+                                          await handleDeleteSchedule(id);
+                                        }}
+                                      >
+                                        Hapus
+                                      </Button>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
@@ -964,7 +1248,7 @@ export default function AdminSchedulePage() {
         </Card>
       )}
 
-      {/* Dialog EDIT global */}
+      {/* Dialog EDIT */}
       <Dialog
         open={!!editingSchedule}
         onOpenChange={(open) => {
@@ -1003,7 +1287,6 @@ export default function AdminSchedulePage() {
               </select>
             </div>
 
-            {/* Kategori */}
             <div className="space-y-2">
               <Label>Kategori (Opsional)</Label>
               <Input
@@ -1038,15 +1321,36 @@ export default function AdminSchedulePage() {
               <Label>Lokasi</Label>
               <Input
                 value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
+                onChange={(e) => {
+                  pickedManuallyRef.current = false;
+                  setFormData({ ...formData, location: e.target.value });
+                }}
               />
-              <Input
-                readOnly
-                value={formData.locationMapUrl}
-                placeholder="Tautan Google Maps"
-              />
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={formData.locationMapUrl}
+                  placeholder="Tautan OpenStreetMap"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-transparent"
+                  onClick={() => {
+                    const center = parseLatLonFromOsmUrl(
+                      formData.locationMapUrl
+                    );
+                    setPickerCenter({
+                      lat: center.lat ?? -6.2,
+                      lon: center.lon ?? 106.816666,
+                    });
+                    setPickerOpen(true);
+                  }}
+                  title="Ambil Lokasi dari Peta"
+                >
+                  <Map size={16} />
+                </Button>
+              </div>
               {!!formData.locationMapUrl && (
                 <a
                   href={formData.locationMapUrl}
@@ -1054,12 +1358,27 @@ export default function AdminSchedulePage() {
                   rel="noreferrer"
                   className="text-sm text-blue-600 underline"
                 >
-                  Buka di Google Maps
+                  Buka di OpenStreetMap
                 </a>
               )}
+              {(() => {
+                const p = parseLatLonFromOsmUrl(formData.locationMapUrl);
+                return typeof p.lat === "number" &&
+                  typeof p.lon === "number" ? (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Titik: {p.lat.toFixed(6)}, {p.lon.toFixed(6)}
+                  </p>
+                ) : formData.locationLat != null &&
+                  formData.locationLon != null ? (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Titik: {formData.locationLat.toFixed(6)},{" "}
+                    {formData.locationLon.toFixed(6)}
+                  </p>
+                ) : null;
+              })()}
             </div>
 
-            {/* Petunjuk multi */}
+            {/* Petunjuk */}
             <div className="space-y-2">
               <Label>Petunjuk (Opsional)</Label>
               <div className="space-y-2">
@@ -1143,6 +1462,68 @@ export default function AdminSchedulePage() {
               Simpan Perubahan
             </Button>
           </div>
+
+          {/* Picker (Edit) */}
+          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Pilih Titik Lokasi (OpenStreetMap)</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="h-[420px] w-full rounded-md overflow-hidden border">
+                  <LeafletMap
+                    center={[pickerCenter.lat, pickerCenter.lon]}
+                    zoom={12}
+                    onPick={(lat, lon) => setPickedLatLon({ lat, lon })}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    {pickedLatLon ? (
+                      <>
+                        Titik dipilih: {pickedLatLon.lat.toFixed(6)},{" "}
+                        {pickedLatLon.lon.toFixed(6)}
+                      </>
+                    ) : (
+                      <>Klik pada peta untuk memilih titik.</>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => {
+                        setPickedLatLon(null);
+                        setPickerOpen(false);
+                      }}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (!pickedLatLon) return;
+                        pickedManuallyRef.current = true;
+                        const url = osmPermalink(
+                          pickedLatLon.lat,
+                          pickedLatLon.lon,
+                          17
+                        );
+                        setFormData((f) => ({
+                          ...f,
+                          locationMapUrl: url,
+                          locationLat: pickedLatLon.lat,
+                          locationLon: pickedLatLon.lon,
+                        }));
+                        setPickerOpen(false);
+                      }}
+                    >
+                      Gunakan Titik Ini
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,400 +1,410 @@
-"use client"
+// app/trip/[tripId]/schedule/page.tsx
+"use client";
 
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Clock, MapPin, AlertCircle, Plus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Clock, MapPin, AlertCircle, Plus } from "lucide-react";
 
-interface SessionItem {
-  id: string
-  time: string
-  title: string
-  location?: string
-  isCheckedIn?: boolean
-  isChanged?: boolean
-  isAdditional?: boolean
+/* ============ Types ============ */
+type SessionItem = {
+  id: string;
+  time: string;
+  title: string;
+  location?: string | null;
+  locationMapUrl?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+  isChanged?: boolean;
+  isAdditional?: boolean;
+};
+type DaySchedule = {
+  day: number;
+  date: string;
+  dateValueISO?: string;
+  sessions: SessionItem[];
+};
+type Trip = { id: string; name: string; status?: string };
+
+/* ============ Utils ============ */
+function mapUrlFromLatLon(lat?: number | null, lon?: number | null) {
+  if (lat == null || lon == null) return null;
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
 }
 
-interface DaySchedule {
-  day: number
-  date: string
-  dateValue: Date
-  sessions: SessionItem[]
+async function fetchJson(url: string) {
+  const res = await fetch(url, { cache: "no-store" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+  return json;
 }
 
-export default function SchedulePage({
-  params,
-}: {
-  params: { tripId: string }
-}) {
-  const router = useRouter()
+// --- VALIDATORS (shape guards) ---
+function pickTripShape(raw: any): Trip | null {
+  const obj =
+    (raw &&
+      typeof raw === "object" &&
+      raw.data &&
+      typeof raw.data === "object" &&
+      raw.data) ||
+    (raw &&
+      typeof raw === "object" &&
+      raw.trip &&
+      typeof raw.trip === "object" &&
+      raw.trip) ||
+    (raw && typeof raw === "object" && raw);
 
-  const [selectedDay, setSelectedDay] = useState<number>(1)
+  if (obj && typeof obj.id === "string" && obj.id.length > 0) {
+    return {
+      id: obj.id,
+      name:
+        typeof obj.name === "string" && obj.name.length > 0
+          ? obj.name
+          : obj.title ?? obj.id,
+      status: obj.status,
+    };
+  }
+  return null;
+}
 
-  // Mock data - Paket Tour Komodo 3 Hari 2 Malam
-  const schedule: DaySchedule[] = [
-    {
-      day: 1,
-      date: "27 November 2025",
-      dateValue: new Date(2025, 10, 27), // Month is 0-indexed
-      sessions: [
-        {
-          id: "1-1",
-          time: "13.00",
-          title: "Penjemputan di Bandara Komodo Airport",
-          location: "Komodo Airport",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-2",
-          time: "14.30",
-          title: "Menuju ke pelabuhan untuk inap di Pinisi Deluxe",
-          location: "Pelabuhan Labuan Bajo",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-3",
-          time: "16.00",
-          title: "Start sailing ke Pulau Kelor",
-          location: "Pelabuhan",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-4",
-          time: "17.30",
-          title: "Explore Pulau Kelor & Pulau Manjarite",
-          location: "Pulau Kelor",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-5",
-          time: "18.30",
-          title: "Snorkeling di Manjarite",
-          location: "Pulau Manjarite",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-6",
-          time: "19.30",
-          title: "Explore Pulau Kalong (spot kelelawar & sunset)",
-          location: "Pulau Kalong",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-7",
-          time: "20.00",
-          title: "Makan siang & malam di kapal",
-          location: "Pinisi Deluxe",
-          isCheckedIn: false,
-        },
-        {
-          id: "1-8",
-          time: "22.00",
-          title: "Menginap di kapal",
-          location: "Pinisi Deluxe",
-          isCheckedIn: false,
-        },
-      ],
-    },
-    {
-      day: 2,
-      date: "28 November 2025",
-      dateValue: new Date(2025, 10, 28),
-      sessions: [
-        {
-          id: "2-1",
-          time: "05.30",
-          title: "Morning call, naik ke Bukit Padar",
-          location: "Bukit Padar",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-2",
-          time: "06.30",
-          title: "Sunrise di Bukit Padar",
-          location: "Bukit Padar",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-3",
-          time: "08.00",
-          title: "Pantai Pink (snorkeling & foto)",
-          location: "Pantai Pink",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-4",
-          time: "10.00",
-          title: "Explore Komodo (soft trekking 1 jam bersama ranger)",
-          location: "Pulau Komodo",
-          isCheckedIn: false,
-          isChanged: true, // Example of changed item
-        },
-        {
-          id: "2-5",
-          time: "12.00",
-          title: "Snorkeling di Manta Point",
-          location: "Manta Point",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-6",
-          time: "14.00",
-          title: "Explore Taka Makasar (spot foto instagramable)",
-          location: "Taka Makasar",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-6b",
-          time: "15.00",
-          title: "Bonus: Diving spot tambahan",
-          location: "Kanawa Island",
-          isCheckedIn: false,
-          isAdditional: true, // Example of additional item
-        },
-        {
-          id: "2-7",
-          time: "16.00",
-          title: "Sarapan, makan siang, makan malam di kapal",
-          location: "Pinisi Deluxe",
-          isCheckedIn: false,
-        },
-        {
-          id: "2-8",
-          time: "22.00",
-          title: "Menginap di kapal",
-          location: "Pinisi Deluxe",
-          isCheckedIn: false,
-        },
-      ],
-    },
-    {
-      day: 3,
-      date: "29 November 2025",
-      dateValue: new Date(2025, 10, 29),
-      sessions: [
-        {
-          id: "3-1",
-          time: "08.00",
-          title: "Sarapan, berlayar ke Pulau Kanawa",
-          location: "Pulau Kanawa",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-2",
-          time: "10.00",
-          title: "Explore Pulau Kanawa (spot eksotis NTT)",
-          location: "Pulau Kanawa",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-3",
-          time: "12.30",
-          title: "Makan siang di kapal",
-          location: "Pinisi Deluxe",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-4",
-          time: "14.00",
-          title: "Kembali ke Labuan Bajo",
-          location: "Pelabuhan Labuan Bajo",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-5",
-          time: "16.00",
-          title: "City tour sambil menunggu flight",
-          location: "Labuan Bajo",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-6",
-          time: "17.30",
-          title: "Menuju bandara",
-          location: "Bandara Komodo",
-          isCheckedIn: false,
-        },
-        {
-          id: "3-7",
-          time: "18.25",
-          title: "Take off ke Surabaya",
-          location: "Komodo Airport",
-          isCheckedIn: false,
-        },
-      ],
-    },
-  ]
+function pickDaysShape(raw: any): DaySchedule[] {
+  const arr = Array.isArray(raw?.data)
+    ? raw.data
+    : Array.isArray(raw)
+    ? raw
+    : [];
+  return arr as DaySchedule[];
+}
 
-  useEffect(() => {
-    const today = new Date()
-    const startDate = new Date(2025, 10, 27) // Nov 27
-    const endDate = new Date(2025, 10, 29) // Nov 29
-
-    // Check if today is between start and end date
-    if (today >= startDate && today <= endDate) {
-      const dayIndex = schedule.findIndex((day) => {
-        const dayDate = day.dateValue
-        return (
-          dayDate.getDate() === today.getDate() &&
-          dayDate.getMonth() === today.getMonth() &&
-          dayDate.getFullYear() === today.getFullYear()
-        )
-      })
-      if (dayIndex !== -1) {
-        setSelectedDay(schedule[dayIndex].day)
-      }
-    } else {
-      // Default to first day if outside date range
-      setSelectedDay(1)
+// --- Fetch with fallbacks but with validation ---
+async function getTripFromAny(tripId: string): Promise<Trip | null> {
+  const id = encodeURIComponent(tripId);
+  const tries = [
+    `/api/trips/${id}`,
+    `/api/trips?id=${id}`,
+    `/api/trip?id=${id}`,
+  ];
+  for (const u of tries) {
+    try {
+      const j = await fetchJson(u);
+      const t = pickTripShape(j);
+      if (t) return t;
+    } catch {
+      // try next
     }
-  }, [])
+  }
+  return null; // biarin null, header tetap aman
+}
 
-  const handleSessionClick = (sessionId: string) => {
-    router.push(`/trip/${params.tripId}/session/${sessionId}`)
+async function getSchedulesFromAny(tripId: string): Promise<DaySchedule[]> {
+  const id = encodeURIComponent(tripId);
+  const tries = [
+    `/api/trip/${id}/schedules`, // versi dinamis (plural)
+    `/api/trip/schedules?tripId=${id}`, // versi query (plural)
+    `/api/trip/${id}/schedules`, // versi dinamis (singular)
+    `/api/trip/schedules?tripId=${id}`, // versi query (singular)
+    `/api/schedules?tripId=${id}`, // generic
+  ];
+  for (const u of tries) {
+    try {
+      const j = await fetchJson(u);
+      const d = pickDaysShape(j);
+      if (d.length) return d;
+    } catch {
+      // try next
+    }
+  }
+  return []; // tidak error, hanya kosong
+}
+
+/* ============ Page ============ */
+export default function SchedulePage() {
+  const router = useRouter();
+  const params = useParams<{ tripId: string }>();
+  const tripId = params?.tripId;
+
+  const [trip, setTrip] = useState<Trip | null>(null);
+  const [days, setDays] = useState<DaySchedule[]>([]);
+  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (!tripId) {
+    return (
+      <div className="w-full max-w-2xl mx-auto px-4 py-6">
+        <p className="text-sm text-muted-foreground">Memuat trip…</p>
+      </div>
+    );
   }
 
-  const currentDaySchedule = schedule.find((day) => day.day === selectedDay)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+
+        const [t, d] = await Promise.all([
+          getTripFromAny(tripId),
+          getSchedulesFromAny(tripId),
+        ]);
+
+        if (!cancelled) {
+          if (t && t.id) setTrip(t); // ✅ hanya set jika valid
+          setDays(d);
+        }
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message ?? "Terjadi kesalahan");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  // auto-pilih "hari ini"
+  useEffect(() => {
+    if (!days.length) return;
+    const today = new Date();
+    const idx = days.findIndex((d) => {
+      if (!d.dateValueISO) return false;
+      const dt = new Date(d.dateValueISO);
+      return (
+        dt.getFullYear() === today.getFullYear() &&
+        dt.getMonth() === today.getMonth() &&
+        dt.getDate() === today.getDate()
+      );
+    });
+    setSelectedDay(idx >= 0 ? days[idx].day : days[0]?.day ?? 1);
+  }, [days]);
+
+  const currentDaySchedule = useMemo(
+    () => days.find((d) => d.day === selectedDay),
+    [days, selectedDay]
+  );
+
+  const handleSessionClick = (sessionId: string) => {
+    router.push(
+      `/trip/${encodeURIComponent(tripId)}/session/${encodeURIComponent(
+        sessionId
+      )}`
+    );
+  };
+
+  // ===== UI states =====
+  if (loading) {
+    return (
+      <div className="w-full max-w-2xl mx-auto px-4 py-6">
+        <p className="text-sm text-muted-foreground">Memuat jadwal…</p>
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div className="w-full max-w-2xl mx-auto px-4 py-6">
+        <p className="text-sm text-red-600">Gagal memuat: {err}</p>
+      </div>
+    );
+  }
+
+  // ===== Header labels yang AMAN =====
+  const tripNameLabel = trip?.name || "Trip";
+  const tripCodeLabel = String(tripId); // selalu ada karena dari URL
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Jadwal Perjalanan</h1>
-        <p className="text-sm text-muted-foreground mt-1">Paket Tour Komodo 3 Hari 2 Malam</p>
+        <h1 className="text-2xl font-bold text-foreground">
+          Jadwal Perjalanan
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {tripNameLabel} • ({tripCodeLabel})
+        </p>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {schedule.map((day) => (
-          <button
-            key={day.day}
-            onClick={() => setSelectedDay(day.day)}
-            className={`
-              flex-shrink-0 px-4 py-3 rounded-lg border transition-all
-              ${
-                selectedDay === day.day
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                  : "bg-card border-border hover:border-primary/50"
-              }
-            `}
-          >
-            <p
-              className={`text-xs font-medium ${selectedDay === day.day ? "text-primary-foreground" : "text-muted-foreground"}`}
+      {/* Day pills */}
+      {days.length > 0 ? (
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {days.map((day) => (
+            <button
+              key={day.day}
+              onClick={() => setSelectedDay(day.day)}
+              className={`
+                flex-shrink-0 px-4 py-3 rounded-lg border transition-all
+                ${
+                  selectedDay === day.day
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-card border-border hover:border-primary/50"
+                }
+              `}
             >
-              Hari {day.day}
-            </p>
-            <p
-              className={`text-sm font-semibold mt-0.5 ${selectedDay === day.day ? "text-primary-foreground" : "text-foreground"}`}
-            >
-              {day.date.split(" ")[0]} {day.date.split(" ")[1]}
-            </p>
-          </button>
-        ))}
-      </div>
+              <p
+                className={`text-xs font-medium ${
+                  selectedDay === day.day
+                    ? "text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                Hari {day.day}
+              </p>
+              <p
+                className={`text-sm font-semibold mt-0.5 ${
+                  selectedDay === day.day
+                    ? "text-primary-foreground"
+                    : "text-foreground"
+                }`}
+              >
+                {day.date}
+              </p>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-muted-foreground">
+          Belum ada data jadwal.
+        </div>
+      )}
 
-      {/* Schedule Timeline for Selected Day */}
+      {/* Schedule for selected day */}
       {currentDaySchedule && (
         <div className="space-y-4">
           {/* Day Header */}
           <div className="bg-card border border-border rounded-lg p-4">
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 border border-primary/20">
-                <span className="font-bold text-primary text-sm">H{currentDaySchedule.day}</span>
+                <span className="font-bold text-primary text-sm">
+                  H{currentDaySchedule.day}
+                </span>
               </div>
               <div>
                 <p className="font-semibold text-foreground">
                   {currentDaySchedule.day === 1
                     ? "Kedatangan & Penjemputan"
                     : currentDaySchedule.day === 2
-                      ? "Eksplorasi Komodo"
-                      : "Kepulangan"}
+                    ? "Eksplorasi Komodo"
+                    : "Kepulangan"}
                 </p>
-                <p className="text-xs text-muted-foreground">{currentDaySchedule.date}</p>
+                <p className="text-xs text-muted-foreground">
+                  {currentDaySchedule.date}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Sessions Timeline */}
+          {/* Timeline */}
           <div className="space-y-3 pl-6 relative">
-            {/* Timeline line */}
             <div className="absolute left-2.5 top-0 bottom-0 w-0.5 bg-primary/20"></div>
 
-            {currentDaySchedule.sessions.map((session) => (
-              <div key={session.id} className="relative">
-                {/* Timeline dot */}
-                <div className="absolute -left-6 top-2 w-5 h-5 bg-card border-2 border-primary rounded-full z-10"></div>
+            {currentDaySchedule.sessions.map((session) => {
+              const fallbackMap =
+                !session.locationMapUrl &&
+                session.lat != null &&
+                session.lon != null
+                  ? mapUrlFromLatLon(session.lat, session.lon)
+                  : null;
+              const mapHref = session.locationMapUrl || fallbackMap || null;
 
-                {/* Session Card */}
-                <Card
-                  onClick={() => handleSessionClick(session.id)}
-                  className={`
-                    p-4 cursor-pointer hover:shadow-md transition-shadow
-                    ${session.isChanged || session.isAdditional ? "border-red-300 border-2" : "border border-border"}
-                  `}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Clock size={16} className="text-primary flex-shrink-0" />
-                        <span
-                          className={`font-semibold ${session.isChanged || session.isAdditional ? "text-red-600" : "text-foreground"}`}
-                        >
-                          {session.time}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 justify-end">
-                        {session.isChanged && (
-                          <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                            <AlertCircle size={12} />
-                            Perubahan
-                          </span>
-                        )}
-                        {session.isAdditional && (
-                          <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                            <Plus size={12} />
-                            Tambahan
-                          </span>
-                        )}
-                        {session.isCheckedIn && (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
-                            Sudah Check-in
-                          </span>
-                        )}
-                      </div>
-                    </div>
+              return (
+                <div key={session.id} className="relative">
+                  <div className="absolute -left-6 top-2 w-5 h-5 bg-card border-2 border-primary rounded-full z-10"></div>
 
-                    <div>
-                      <p
-                        className={`font-medium leading-relaxed ${session.isChanged || session.isAdditional ? "text-red-600 font-semibold" : "text-foreground"}`}
-                      >
-                        {session.title}
-                      </p>
-                      {session.location && (
-                        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                          <MapPin size={14} />
-                          {session.location}
+                  <Card
+                    onClick={() => handleSessionClick(session.id)}
+                    className={`
+                      p-4 cursor-pointer hover:shadow-md transition-shadow
+                      ${
+                        session.isChanged || session.isAdditional
+                          ? "border-red-300 border-2"
+                          : "border border-border"
+                      }
+                    `}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Clock
+                            size={16}
+                            className="text-primary flex-shrink-0"
+                          />
+                          <span
+                            className={`font-semibold ${
+                              session.isChanged || session.isAdditional
+                                ? "text-red-600"
+                                : "text-foreground"
+                            }`}
+                          >
+                            {session.time}
+                          </span>
                         </div>
-                      )}
-                    </div>
+                        <div className="flex flex-wrap gap-1.5 justify-end">
+                          {session.isChanged && (
+                            <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                              <AlertCircle size={12} /> Perubahan
+                            </span>
+                          )}
+                          {session.isAdditional && (
+                            <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                              <Plus size={12} /> Tambahan
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleSessionClick(session.id)
-                      }}
-                      variant="outline"
-                      className="w-full text-sm"
-                    >
-                      Lihat Detail
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-            ))}
+                      <div>
+                        <p
+                          className={`font-medium leading-relaxed ${
+                            session.isChanged || session.isAdditional
+                              ? "text-red-600 font-semibold"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {session.title}
+                        </p>
+
+                        {session.location && (
+                          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                            <MapPin size={14} />
+                            <span className="truncate">{session.location}</span>
+                          </div>
+                        )}
+
+                        {mapHref && (
+                          <div className="mt-1">
+                            <a
+                              href={mapHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs underline text-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Buka peta
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSessionClick(session.id);
+                        }}
+                        variant="outline"
+                        className="w-full text-sm"
+                      >
+                        Lihat Detail
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
     </div>
-  )
+  );
 }
