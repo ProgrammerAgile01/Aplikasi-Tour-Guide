@@ -2,7 +2,7 @@
 
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-client";
 
 export default function ClientHeader() {
   const { user, logout } = useAuth();
