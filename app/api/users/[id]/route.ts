@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
-const UpdateParticipantSchema = z.object({
-  name: z.string().trim().min(1),
-  whatsapp: z.string().trim().min(3),
-  address: z.string().trim().min(1),
+const UpdateUserSchema = z.object({
+  name: z.string().optional(),
+  role: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
 async function resolveId(req: Request, params: any) {
@@ -33,16 +33,33 @@ export async function GET(req: Request, { params }: { params: any }) {
         { status: 400 }
       );
 
-    const item = await prisma.participant.findUnique({ where: { id } });
+    const item = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        whatsapp: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        userTrips: {
+          select: {
+            roleOnTrip: true,
+            trip: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
     if (!item)
       return NextResponse.json(
-        { ok: false, message: "Peserta tidak ditemukan" },
+        { ok: false, message: "User not found" },
         { status: 404 }
       );
-
     return NextResponse.json({ ok: true, item });
   } catch (err: any) {
-    console.error("GET /api/participants/[id] error:", err);
+    console.error("GET /api/users/[id] error", err);
     return NextResponse.json(
       { ok: false, message: err?.message ?? "Internal Error" },
       { status: 500 }
@@ -60,32 +77,28 @@ export async function PUT(req: Request, { params }: { params: any }) {
       );
 
     const json = await req.json();
-    const data = UpdateParticipantSchema.parse(json);
+    const data = UpdateUserSchema.parse(json);
 
-    const updated = await prisma.participant.update({
-      where: { id },
-      data: {
-        name: data.name,
-        whatsapp: data.whatsapp,
-        address: data.address,
+    const updated = await prisma.user.update({ where: { id }, data });
+
+    return NextResponse.json({
+      ok: true,
+      item: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        whatsapp: updated.whatsapp,
+        role: updated.role,
+        isActive: updated.isActive,
       },
     });
-
-    return NextResponse.json({ ok: true, item: updated });
   } catch (err: any) {
-    console.error("PUT /api/participants/[id] error:", err);
-    if (err?.name === "ZodError") {
+    console.error("PUT /api/users/[id] error", err);
+    if (err?.name === "ZodError")
       return NextResponse.json(
         { ok: false, message: "Validasi gagal", issues: err.issues },
         { status: 400 }
       );
-    }
-    if (err?.code === "P2025") {
-      return NextResponse.json(
-        { ok: false, message: "Peserta tidak ditemukan" },
-        { status: 404 }
-      );
-    }
     return NextResponse.json(
       { ok: false, message: err?.message ?? "Internal Error" },
       { status: 500 }
@@ -102,16 +115,10 @@ export async function DELETE(req: Request, { params }: { params: any }) {
         { status: 400 }
       );
 
-    await prisma.participant.delete({ where: { id } });
+    await prisma.user.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("DELETE /api/participants/[id] error:", err);
-    if (err?.code === "P2025") {
-      return NextResponse.json(
-        { ok: false, message: "Peserta tidak ditemukan" },
-        { status: 404 }
-      );
-    }
+    console.error("DELETE /api/users/[id] error", err);
     return NextResponse.json(
       { ok: false, message: err?.message ?? "Internal Error" },
       { status: 500 }

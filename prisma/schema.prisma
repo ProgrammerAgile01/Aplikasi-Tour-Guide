@@ -35,6 +35,7 @@ model Trip {
   schedules   Schedule[] @relation("TripSchedules")
   announcements Announcement[]
   participants Participant[]
+  userTrips   UserTrip[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -116,6 +117,41 @@ model Participant {
   trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
 
+  loginEmail        String?   @db.VarChar(191)
+  initialPassword   String?   @db.VarChar(191) // simpan "raw" one-time password
+  initialPasswordAt DateTime? // kapan password awal dibuat
+
   @@index([tripId])
   @@index([whatsapp])
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  name       String
+  whatsapp   String   @unique
+  role       String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  userTrips  UserTrip[]
+
+  @@index([role])
+}
+
+
+model UserTrip {
+  id         String   @id @default(cuid())
+  userId     String
+  tripId     String
+  roleOnTrip String?   // optional, e.g. "PESERTA", "GUIDE"
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId])
+  @@index([userId])
+  @@index([tripId])
 }

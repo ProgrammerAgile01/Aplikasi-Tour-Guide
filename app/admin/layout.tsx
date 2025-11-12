@@ -3,7 +3,7 @@
 import type React from "react";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-client";
 import {
   LayoutDashboard,
   Calendar,
@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Map,
+  CircleUser,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -41,6 +42,7 @@ export default function AdminLayout({
     },
     { name: "Pengumuman", path: "/admin/announcements", icon: Megaphone },
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
+    { name: "Pengguna", path: "/admin/users", icon: CircleUser },
   ];
 
   return (
@@ -118,7 +120,9 @@ export default function AdminLayout({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 bg-transparent"
-              onClick={logout}
+              onClick={async () => {
+                await logout();
+              }}
             >
               <LogOut size={20} />
               <span>Keluar</span>

@@ -17,6 +17,7 @@ import {
   XCircle,
   Map,
   Loader2,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -75,26 +76,28 @@ export default function AdminParticipantsPage() {
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // credential modal (show plain password once)
+  const [credentialModalOpen, setCredentialModalOpen] = useState(false);
+  const [lastCreatedCredential, setLastCreatedCredential] = useState<{
+    email: string;
+    password?: string;
+  } | null>(null);
+
   useEffect(() => {
     loadTrips();
   }, []);
-
   useEffect(() => {
     if (selectedTripId) loadParticipants(selectedTripId);
     else setParticipants([]);
   }, [selectedTripId]);
 
-  // -------------------------
-  // Fetch helpers (direct fetch)
-  // -------------------------
   async function loadTrips() {
     setLoadingTrips(true);
     try {
       const res = await fetch("/api/trips");
       const json = await res.json();
-      if (!res.ok || !json?.ok) {
+      if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat trips");
-      }
       setTrips(json.items ?? json.data ?? []);
     } catch (err: any) {
       console.error(err);
@@ -115,9 +118,8 @@ export default function AdminParticipantsPage() {
         `/api/participants?tripId=${encodeURIComponent(tripId)}`
       );
       const json = await res.json();
-      if (!res.ok || !json?.ok) {
+      if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat peserta");
-      }
       setParticipants(json.items ?? json.data ?? []);
     } catch (err: any) {
       console.error(err);
@@ -131,7 +133,7 @@ export default function AdminParticipantsPage() {
     }
   }
 
-  async function createParticipant(payload: {
+  async function createParticipantApi(payload: {
     name: string;
     whatsapp: string;
     address: string;
@@ -142,13 +144,10 @@ export default function AdminParticipantsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    if (!res.ok || !json?.ok)
-      throw new Error(json?.message || "Gagal menambah peserta");
-    return json.item ?? json.data ?? json;
+    return res.json();
   }
 
-  async function updateParticipant(
+  async function updateParticipantApi(
     id: string,
     payload: { name: string; whatsapp: string; address: string }
   ) {
@@ -157,25 +156,16 @@ export default function AdminParticipantsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const json = await res.json();
-    if (!res.ok || !json?.ok)
-      throw new Error(json?.message || "Gagal memperbarui peserta");
-    return json.item ?? json.data ?? json;
+    return res.json();
   }
 
   async function deleteParticipantApi(id: string) {
     const res = await fetch(`/api/participants/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
-    const json = await res.json();
-    if (!res.ok || !json?.ok)
-      throw new Error(json?.message || "Gagal menghapus peserta");
-    return json;
+    return res.json();
   }
 
-  // -------------------------
-  // UI logic
-  // -------------------------
   const filteredParticipants = participants.filter((p) => {
     const matchesTrip = !selectedTripId || p.tripId === selectedTripId;
     const matchesSearch =
@@ -194,7 +184,6 @@ export default function AdminParticipantsPage() {
       });
       return;
     }
-
     if (participant) {
       setEditingId(participant.id);
       setFormData({
@@ -224,27 +213,39 @@ export default function AdminParticipantsPage() {
       });
       return;
     }
-
     try {
       if (editingId) {
-        const updated = await updateParticipant(editingId, formData);
+        const json = await updateParticipantApi(editingId, formData);
+        if (!json.ok) throw new Error(json.message || "Gagal update");
         setParticipants((prev) =>
-          prev.map((p) => (p.id === editingId ? { ...p, ...updated } : p))
+          prev.map((p) => (p.id === editingId ? json.item : p))
         );
         toast({
           title: "Peserta Diperbarui",
           description: "Data peserta berhasil diperbarui.",
         });
       } else {
-        const created = await createParticipant({
+        const json = await createParticipantApi({
           ...formData,
           tripId: selectedTripId,
         });
-        setParticipants((prev) => [...prev, created]);
+        if (!json.ok) throw new Error(json.message || "Gagal tambah peserta");
+        setParticipants((prev) => [...prev, json.participant]);
         toast({
           title: "Peserta Ditambahkan",
           description: "Peserta baru berhasil ditambahkan.",
         });
+
+        if (json.user?.plainPassword || json.participant?.initialPassword) {
+          setLastCreatedCredential({
+            email: json.user?.email ?? json.participant?.loginEmail ?? "",
+            password:
+              json.user?.plainPassword ??
+              json.participant?.initialPassword ??
+              "",
+          });
+          setCredentialModalOpen(true);
+        }
       }
       handleCloseDialog();
     } catch (err: any) {
@@ -257,18 +258,16 @@ export default function AdminParticipantsPage() {
     }
   };
 
-  // OPEN delete modal
   const openDeleteModal = (p: { id: string; name?: string }) => {
     setDeletingParticipant(p);
     setDeleteDialogOpen(true);
   };
-
-  // CONFIRM delete
   const confirmDelete = async () => {
     if (!deletingParticipant) return;
     setIsDeleting(true);
     try {
-      await deleteParticipantApi(deletingParticipant.id);
+      const json = await deleteParticipantApi(deletingParticipant.id);
+      if (!json.ok) throw new Error(json.message || "Gagal hapus");
       setParticipants((prev) =>
         prev.filter((x) => x.id !== deletingParticipant.id)
       );
@@ -291,7 +290,6 @@ export default function AdminParticipantsPage() {
       setIsDeleting(false);
     }
   };
-
   const cancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeletingParticipant(null);
@@ -378,6 +376,7 @@ export default function AdminParticipantsPage() {
                 </div>
               </CardContent>
             </Card>
+
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -393,6 +392,7 @@ export default function AdminParticipantsPage() {
                 </div>
               </CardContent>
             </Card>
+
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -435,8 +435,7 @@ export default function AdminParticipantsPage() {
                   onClick={() => handleOpenDialog()}
                   className="gap-2 bg-blue-600 hover:bg-blue-700"
                 >
-                  <Plus size={16} />
-                  Tambah Peserta
+                  <Plus size={16} /> Tambah Peserta
                 </Button>
               </div>
             </CardHeader>
@@ -635,11 +634,10 @@ export default function AdminParticipantsPage() {
         <DialogContent className="sm:max-w-[420px] backdrop-blur-xl bg-white/80 dark:bg-gray-900/80 border border-gray-200/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Trash2 className="w-5 h-5 text-red-500" />
-              Konfirmasi Hapus Peserta
+              <Trash2 className="w-5 h-5 text-red-500" /> Konfirmasi Hapus
+              Peserta
             </DialogTitle>
           </DialogHeader>
-
           <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
             <p>
               Apakah Anda yakin ingin menghapus peserta{" "}
@@ -652,7 +650,6 @@ export default function AdminParticipantsPage() {
               Tindakan ini tidak dapat dibatalkan.
             </p>
           </div>
-
           <DialogFooter className="mt-6 flex justify-end gap-2">
             <Button
               variant="outline"
@@ -672,9 +669,68 @@ export default function AdminParticipantsPage() {
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
               ) : (
                 <Trash2 className="w-4 h-4 mr-2" />
-              )}
+              )}{" "}
               Hapus
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Credential modal */}
+      <Dialog open={credentialModalOpen} onOpenChange={setCredentialModalOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Credential Akun Baru</DialogTitle>
+          </DialogHeader>
+          <div className="p-4">
+            <p className="text-sm text-slate-700">
+              Akun peserta baru berhasil dibuat. Simpan credential ini dan kirim
+              ke peserta (ditampilkan sekali saja).
+            </p>
+            <div className="mt-4 bg-slate-50 p-4 rounded">
+              <p className="text-xs text-slate-500">Email</p>
+              <div className="flex items-center gap-2">
+                <code className="font-mono text-sm">
+                  {lastCreatedCredential?.email}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(
+                      lastCreatedCredential?.email ?? ""
+                    );
+                    toast({ title: "Copied", description: "Email disalin" });
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Password</p>
+              <div className="flex items-center gap-2">
+                <code className="font-mono text-sm">
+                  {lastCreatedCredential?.password ?? "—"}
+                </code>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(
+                      lastCreatedCredential?.password ?? ""
+                    );
+                    toast({ title: "Copied", description: "Password disalin" });
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Sebaiknya minta peserta mengganti password setelah login.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCredentialModalOpen(false)}>Tutup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
