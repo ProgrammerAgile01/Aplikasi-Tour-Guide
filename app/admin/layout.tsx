@@ -17,6 +17,7 @@ import {
   Map,
   CircleUser,
   Star,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -45,6 +46,7 @@ export default function AdminLayout({
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
     { name: "Pengguna", path: "/admin/users", icon: CircleUser },
     { name: "Rating", path: "/admin/feedback", icon: Star },
+    { name: "Panel WhatsApp", path: "/admin/whatsapp-panel", icon: Phone },
   ];
 
   return (

@@ -653,11 +653,43 @@ export default function AdminSchedulePage() {
     }
   };
 
-  const handleSendToParticipants = () => {
-    toast({
-      title: "Jadwal Dikirim",
-      description: "Perubahan jadwal telah dikirim ke seluruh peserta.",
-    });
+  const handleSendToParticipants = async () => {
+    if (!selectedTripId) {
+      toast({
+        title: "Pilih Trip",
+        description: "Silakan pilih trip terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/trips/${encodeURIComponent(
+          selectedTripId
+        )}/send-schedule-whatsapp`,
+        { method: "POST" }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || "Gagal mengantrikan jadwal");
+      }
+
+      toast({
+        title: "Diantrikan ke WhatsApp",
+        description: `Jadwal dikirim ke ${json.participantCount} peserta via antrian WA.`,
+      });
+
+      // optional: trigger worker sekali setelah enqueue
+      fetch("/api/wa/worker-send", { method: "POST" }).catch(() => {});
+    } catch (err: any) {
+      toast({
+        title: "Gagal Mengirim",
+        description: err?.message || "Terjadi kesalahan saat mengirim jadwal.",
+        variant: "destructive",
+      });
+    }
   };
 
   const resetForm = () => {

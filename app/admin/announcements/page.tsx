@@ -325,31 +325,6 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Pilih Trip */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-2">
-            <Label className="text-base font-semibold">Pilih Trip</Label>
-            <select
-              className="w-full h-11 px-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-              value={selectedTripId}
-              onChange={(e) => setSelectedTripId(e.target.value)}
-              disabled={loadingTrips}
-            >
-              <option value="">
-                {loadingTrips ? "Memuat..." : "-- Pilih Trip --"}
-              </option>
-              {trips.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} (
-                  {t.status === "ongoing" ? "Sedang Berjalan" : "Selesai"})
-                </option>
-              ))}
-            </select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Header + Create */}
       <div className="flex items-center justify-between">
         <div>
@@ -426,6 +401,31 @@ export default function AdminAnnouncementsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Pilih Trip */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <Label className="text-base font-semibold">Pilih Trip</Label>
+            <select
+              className="w-full h-11 px-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
+              value={selectedTripId}
+              onChange={(e) => setSelectedTripId(e.target.value)}
+              disabled={loadingTrips}
+            >
+              <option value="">
+                {loadingTrips ? "Memuat..." : "-- Pilih Trip --"}
+              </option>
+              {trips.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} (
+                  {t.status === "ongoing" ? "Sedang Berjalan" : "Selesai"})
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -37,6 +37,7 @@ model Trip {
   participants Participant[]
   userTrips   UserTrip[]
   feedbacks     Feedback[] 
+  whatsappMessages WhatsAppMessage[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -123,6 +124,7 @@ model Participant {
   initialPasswordAt DateTime? // kapan password awal dibuat
 
   feedbacks         Feedback[]
+  whatsappMessages WhatsAppMessage[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -192,4 +194,37 @@ model Feedback {
   @@index([tripId])
   @@index([participantId])
   @@unique([tripId, participantId])  // boleh, NULL di MySQL tidak bentrok
+}
+
+enum WhatsAppStatus {
+  PENDING   // baru diantrikan
+  SENDING   // sedang diproses worker
+  SUCCESS   // sukses kirim ke wa-service
+  FAILED    // gagal (error, limit, dsb)
+}
+
+model WhatsAppMessage {
+  id            String          @id @default(cuid())
+
+  tripId        String?
+  participantId String?
+
+  to            String          @db.VarChar(32)   // nomor WA (62xxxxx)
+  template      String?         @db.VarChar(100)  // mis: "TRIP_SCHEDULE_FULL"
+  content       String          @db.MediumText    // isi pesan WA
+  payload       Json?                                  // data tambahan (tripId, dll)
+
+  status        WhatsAppStatus  @default(PENDING)
+  error         String?         @db.VarChar(512)
+  sentAt        DateTime?
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  trip          Trip?           @relation(fields: [tripId], references: [id])
+  participant   Participant?    @relation(fields: [participantId], references: [id])
+
+  @@index([tripId])
+  @@index([participantId])
+  @@index([status, createdAt])
 }
