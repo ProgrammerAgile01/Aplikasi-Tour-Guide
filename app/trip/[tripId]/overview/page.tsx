@@ -252,7 +252,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   MapPin,
   CheckCircle,
@@ -264,6 +264,8 @@ import {
   BookOpen,
   MessageSquare,
   Loader2,
+  Pin,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -289,7 +291,13 @@ type OverviewData = {
     participants: number;
     duration: string;
   };
-  announcements?: { id: string | number; text: string }[];
+  announcements?: {
+    id: string | number;
+    title?: string;
+    content?: string;
+    priority?: "NORMAL" | "IMPORTANT" | string;
+    isPinned?: boolean;
+  }[];
 };
 
 export default function OverviewPage() {
@@ -388,7 +396,7 @@ export default function OverviewPage() {
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6">
-      {/* Header dengan Status - UI sama */}
+      {/* Header dengan Status */}
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <div>
@@ -404,7 +412,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Agenda Berikutnya - UI sama */}
+      {/* Agenda Berikutnya */}
       {nextAgenda && (
         <Card className="p-4 border border-border">
           <div className="space-y-4">
@@ -465,7 +473,7 @@ export default function OverviewPage() {
         </Card>
       )}
 
-      {/* Ringkasan Hari Ini - UI sama */}
+      {/* Ringkasan Hari Ini */}
       {summary && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground">
@@ -531,7 +539,7 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Quick Access Features - UI sama */}
+      {/* Quick Access Features */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">
           Fitur Eksklusif
@@ -570,7 +578,7 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Pengumuman Terbaru - UI sama */}
+      {/* Pengumuman Terbaru */}
       {announcements.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground">
@@ -579,16 +587,42 @@ export default function OverviewPage() {
           <div className="space-y-2">
             {announcements.map((a) => (
               <Card key={a.id} className="p-3 border border-border">
-                <p className="text-sm text-foreground leading-relaxed">
-                  {a.text}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-foreground truncate">
+                      {a.title ?? "Tanpa judul"}
+                    </h4>
+                    <p className="text-sm text-muted-foreground mt-1 break-words">
+                      {a.content}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {/* badge pinned */}
+                      {/* {a.isPinned && (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 border border-blue-200 text-xs font-medium text-blue-700">
+                          <Pin size={12} className="text-blue-600" />
+                          <span>Dipasang</span>
+                        </div>
+                      )} */}
+                      {/* badge penting */}
+                      {String(a.priority).toUpperCase() === "IMPORTANT" && (
+                        <div className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 border border-red-200 text-xs font-medium text-red-700">
+                          <AlertCircle size={12} className="text-red-600" />
+                          <span>Penting</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </Card>
             ))}
           </div>
         </div>
       )}
 
-      {/* Banner WhatsApp - UI sama */}
+      {/* Banner WhatsApp */}
       <Card className="p-4 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-primary/20 rounded-lg">

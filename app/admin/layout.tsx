@@ -16,6 +16,7 @@ import {
   X,
   Map,
   CircleUser,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -43,6 +44,7 @@ export default function AdminLayout({
     { name: "Pengumuman", path: "/admin/announcements", icon: Megaphone },
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
     { name: "Pengguna", path: "/admin/users", icon: CircleUser },
+    { name: "Rating", path: "/admin/feedback", icon: Star },
   ];
 
   return (

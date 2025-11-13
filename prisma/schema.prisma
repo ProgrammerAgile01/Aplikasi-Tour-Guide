@@ -36,6 +36,7 @@ model Trip {
   announcements Announcement[]
   participants Participant[]
   userTrips   UserTrip[]
+  feedbacks     Feedback[] 
 
   @@index([status])
   @@index([startDate, endDate])
@@ -121,6 +122,8 @@ model Participant {
   initialPassword   String?   @db.VarChar(191) // simpan "raw" one-time password
   initialPasswordAt DateTime? // kapan password awal dibuat
 
+  feedbacks         Feedback[]
+
   @@index([tripId])
   @@index([whatsapp])
 }
@@ -172,4 +175,21 @@ model Attendance {
 
   @@unique([participantId, sessionId]) // cegah double checkin untuk sesi yang sama
   @@index([tripId, sessionId])
+}
+
+model Feedback {
+  id            String       @id @default(cuid())
+  tripId        String
+  participantId String?   // 👈 boleh null
+
+  rating        Int
+  notes         String?
+  createdAt     DateTime     @default(now())
+
+  trip        Trip         @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([participantId])
+  @@unique([tripId, participantId])  // boleh, NULL di MySQL tidak bentrok
 }
