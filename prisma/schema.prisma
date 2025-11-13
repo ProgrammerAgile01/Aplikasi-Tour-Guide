@@ -38,6 +38,7 @@ model Trip {
   userTrips   UserTrip[]
   feedbacks     Feedback[] 
   whatsappMessages WhatsAppMessage[]
+  attendances      Attendance[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -77,6 +78,8 @@ model Schedule {
 
   createdAt       DateTime  @default(now())
   updatedAt DateTime? @updatedAt
+
+  attendances      Attendance[]
 
   @@index([tripId])
   @@index([tripId, day])
@@ -125,6 +128,7 @@ model Participant {
 
   feedbacks         Feedback[]
   whatsappMessages WhatsAppMessage[]
+  attendances      Attendance[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -175,6 +179,10 @@ model Attendance {
   method         CheckinMethod
   checkedAt      DateTime      @default(now())
 
+  trip         Trip        @relation(fields: [tripId],        references: [id], onDelete: Cascade)
+  session      Schedule    @relation(fields: [sessionId],     references: [id], onDelete: Cascade)
+  participant  Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
   @@unique([participantId, sessionId]) // cegah double checkin untuk sesi yang sama
   @@index([tripId, sessionId])
 }
@@ -182,7 +190,7 @@ model Attendance {
 model Feedback {
   id            String       @id @default(cuid())
   tripId        String
-  participantId String?   // 👈 boleh null
+  participantId String?   // boleh null
 
   rating        Int
   notes         String?

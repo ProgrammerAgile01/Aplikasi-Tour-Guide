@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       );
     }
 
+    // Cari User berdasarkan email / whatsapp
     const user = await prisma.user.findFirst({
       where: {
         OR: [{ email: identifier }, { whatsapp: identifier }],
@@ -43,35 +44,61 @@ export async function POST(req: Request) {
       );
     }
 
-    // fetch userTrips to include trips
+    // Ambil semua Trip yang diikuti user (via UserTrip)
     const userTrips = await prisma.userTrip.findMany({
       where: { userId: user.id },
       include: { trip: true },
     });
 
-    const payload = {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+    // Ambil semua Participant yang match dengan user ini
+    //    (berdasarkan email / whatsapp) untuk semua trip
+    const participants = await prisma.participant.findMany({
+      where: {
+        OR: [{ loginEmail: user.email }, { whatsapp: user.whatsapp }],
       },
-      trips: userTrips.map((ut) => ({
-        id: ut.trip.id,
-        name: ut.trip.name,
-        roleOnTrip: ut.roleOnTrip,
-      })),
+      select: {
+        id: true,
+        tripId: true,
+      },
+    });
+
+    // bikin map tripId -> participantId (kalau ada)
+    const participantByTripId = new Map<string, string>();
+    for (const p of participants) {
+      participantByTripId.set(p.tripId, p.id);
+    }
+
+    // Bentuk payload trips untuk token & response
+    const tripsPayload = userTrips.map((ut) => ({
+      id: ut.trip.id,
+      name: ut.trip.name,
+      roleOnTrip: ut.roleOnTrip,
+      participantId: participantByTripId.get(ut.tripId) ?? null,
+    }));
+
+    const userPayload = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
     };
 
+    const payload = {
+      user: userPayload,
+      trips: tripsPayload,
+    };
+
+    // Generate JWT + cookie
     const token = signToken(payload);
     const cookie = createAuthCookie(token);
 
     const res = NextResponse.json({
       ok: true,
-      user: payload.user,
-      trips: payload.trips,
+      user: userPayload,
+      trips: tripsPayload,
     });
     res.headers.set("Set-Cookie", cookie);
+
     return res;
   } catch (err: any) {
     console.error("login error:", err);
