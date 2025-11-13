@@ -155,3 +155,21 @@ model UserTrip {
   @@index([userId])
   @@index([tripId])
 }
+
+enum CheckinMethod {
+  GEO
+  QR
+  ADMIN
+}
+
+model Attendance {
+  id             String        @id @default(cuid())
+  tripId         String
+  sessionId      String        // Schedule.id
+  participantId  String        // Participant.id
+  method         CheckinMethod
+  checkedAt      DateTime      @default(now())
+
+  @@unique([participantId, sessionId]) // cegah double checkin untuk sesi yang sama
+  @@index([tripId, sessionId])
+}

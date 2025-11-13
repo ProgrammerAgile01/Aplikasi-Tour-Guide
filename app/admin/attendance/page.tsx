@@ -1,141 +1,635 @@
-"use client"
+// "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/hooks/use-toast"
-import { Search, MapPin, Clock, QrCode, CheckCircle2, XCircle } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// import { useState } from "react"
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// import { Button } from "@/components/ui/button"
+// import { Input } from "@/components/ui/input"
+// import { toast } from "@/hooks/use-toast"
+// import { Search, MapPin, Clock, QrCode, CheckCircle2, XCircle } from "lucide-react"
+// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// interface AttendanceRecord {
+//   id: string
+//   participantName: string
+//   sessionTitle: string
+//   location: string
+//   method: "geo" | "qr" | "admin"
+//   timestamp: string
+//   status: "present" | "absent"
+// }
+
+// export default function AdminAttendancePage() {
+//   const [searchQuery, setSearchQuery] = useState("")
+//   const [filterMethod, setFilterMethod] = useState<string>("all")
+//   const [filterLocation, setFilterLocation] = useState<string>("all")
+
+//   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
+//     {
+//       id: "1",
+//       participantName: "Budi Santoso",
+//       sessionTitle: "Explore Pulau Komodo",
+//       location: "Pulau Komodo",
+//       method: "geo",
+//       timestamp: "28 Nov 2025, 10:15",
+//       status: "present",
+//     },
+//     {
+//       id: "2",
+//       participantName: "Siti Rahayu",
+//       sessionTitle: "Pantai Pink",
+//       location: "Pantai Pink",
+//       method: "qr",
+//       timestamp: "28 Nov 2025, 08:30",
+//       status: "present",
+//     },
+//     {
+//       id: "3",
+//       participantName: "Ahmad Wijaya",
+//       sessionTitle: "Sunrise di Bukit Padar",
+//       location: "Bukit Padar",
+//       method: "geo",
+//       timestamp: "28 Nov 2025, 06:45",
+//       status: "present",
+//     },
+//     {
+//       id: "4",
+//       participantName: "Dewi Lestari",
+//       sessionTitle: "Penjemputan di Bandara",
+//       location: "Komodo Airport",
+//       method: "admin",
+//       timestamp: "27 Nov 2025, 13:20",
+//       status: "present",
+//     },
+//     {
+//       id: "5",
+//       participantName: "Rudi Hartono",
+//       sessionTitle: "Menuju Pelabuhan",
+//       location: "Pelabuhan Labuan Bajo",
+//       method: "geo",
+//       timestamp: "27 Nov 2025, 14:30",
+//       status: "present",
+//     },
+//   ])
+
+//   const locations = ["all", ...Array.from(new Set(attendanceRecords.map((r) => r.location)))]
+
+//   const filteredRecords = attendanceRecords.filter((record) => {
+//     const matchesSearch =
+//       record.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//       record.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+//       record.location.toLowerCase().includes(searchQuery.toLowerCase())
+
+//     const matchesMethod = filterMethod === "all" || record.method === filterMethod
+//     const matchesLocation = filterLocation === "all" || record.location === filterLocation
+
+//     return matchesSearch && matchesMethod && matchesLocation
+//   })
+
+//   const handleUpdateStatus = (id: string, newStatus: "present" | "absent") => {
+//     setAttendanceRecords(
+//       attendanceRecords.map((record) => (record.id === id ? { ...record, status: newStatus } : record)),
+//     )
+//     toast({
+//       title: "Status Diperbarui",
+//       description: `Status kehadiran berhasil diubah menjadi ${newStatus === "present" ? "Hadir" : "Tidak Hadir"}.`,
+//     })
+//   }
+
+//   const methodBadge = (method: string) => {
+//     const styles = {
+//       geo: "bg-blue-100 text-blue-700",
+//       qr: "bg-purple-100 text-purple-700",
+//       admin: "bg-slate-100 text-slate-700",
+//     }
+//     const icons = {
+//       geo: <MapPin size={12} />,
+//       qr: <QrCode size={12} />,
+//       admin: <CheckCircle2 size={12} />,
+//     }
+//     const labels = {
+//       geo: "GEO",
+//       qr: "QR",
+//       admin: "Admin",
+//     }
+
+//     return (
+//       <span
+//         className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full font-medium ${styles[method as keyof typeof styles]}`}
+//       >
+//         {icons[method as keyof typeof icons]}
+//         {labels[method as keyof typeof labels]}
+//       </span>
+//     )
+//   }
+
+//   const stats = {
+//     total: attendanceRecords.length,
+//     geo: attendanceRecords.filter((r) => r.method === "geo").length,
+//     qr: attendanceRecords.filter((r) => r.method === "qr").length,
+//     admin: attendanceRecords.filter((r) => r.method === "admin").length,
+//   }
+
+//   return (
+//     <div className="p-6 space-y-6">
+//       {/* Header */}
+//       <div>
+//         <h1 className="text-3xl font-bold text-slate-900">Absensi & Kehadiran</h1>
+//         <p className="text-slate-600 mt-1">Rekap kehadiran peserta per lokasi dan waktu</p>
+//       </div>
+
+//       {/* Stats */}
+//       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+//         <Card>
+//           <CardContent className="pt-6">
+//             <div className="text-center">
+//               <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
+//               <p className="text-sm text-slate-600 mt-1">Total Check-in</p>
+//             </div>
+//           </CardContent>
+//         </Card>
+//         <Card>
+//           <CardContent className="pt-6">
+//             <div className="text-center">
+//               <p className="text-3xl font-bold text-blue-600">{stats.geo}</p>
+//               <p className="text-sm text-slate-600 mt-1">Via GEO</p>
+//             </div>
+//           </CardContent>
+//         </Card>
+//         <Card>
+//           <CardContent className="pt-6">
+//             <div className="text-center">
+//               <p className="text-3xl font-bold text-purple-600">{stats.qr}</p>
+//               <p className="text-sm text-slate-600 mt-1">Via QR</p>
+//             </div>
+//           </CardContent>
+//         </Card>
+//         <Card>
+//           <CardContent className="pt-6">
+//             <div className="text-center">
+//               <p className="text-3xl font-bold text-slate-600">{stats.admin}</p>
+//               <p className="text-sm text-slate-600 mt-1">Manual Admin</p>
+//             </div>
+//           </CardContent>
+//         </Card>
+//       </div>
+
+//       {/* Filters */}
+//       <Card>
+//         <CardContent className="pt-6">
+//           <div className="flex flex-col md:flex-row gap-4">
+//             <div className="flex-1 relative">
+//               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+//               <Input
+//                 placeholder="Cari peserta atau lokasi..."
+//                 value={searchQuery}
+//                 onChange={(e) => setSearchQuery(e.target.value)}
+//                 className="pl-10"
+//               />
+//             </div>
+//             <Select value={filterMethod} onValueChange={setFilterMethod}>
+//               <SelectTrigger className="w-full md:w-48">
+//                 <SelectValue placeholder="Filter Metode" />
+//               </SelectTrigger>
+//               <SelectContent>
+//                 <SelectItem value="all">Semua Metode</SelectItem>
+//                 <SelectItem value="geo">GEO Check</SelectItem>
+//                 <SelectItem value="qr">Scan QR</SelectItem>
+//                 <SelectItem value="admin">Admin Manual</SelectItem>
+//               </SelectContent>
+//             </Select>
+//             <Select value={filterLocation} onValueChange={setFilterLocation}>
+//               <SelectTrigger className="w-full md:w-48">
+//                 <SelectValue placeholder="Filter Lokasi" />
+//               </SelectTrigger>
+//               <SelectContent>
+//                 <SelectItem value="all">Semua Lokasi</SelectItem>
+//                 {locations
+//                   .filter((l) => l !== "all")
+//                   .map((location) => (
+//                     <SelectItem key={location} value={location}>
+//                       {location}
+//                     </SelectItem>
+//                   ))}
+//               </SelectContent>
+//             </Select>
+//           </div>
+//         </CardContent>
+//       </Card>
+
+//       {/* Attendance Table */}
+//       <Card>
+//         <CardHeader>
+//           <CardTitle>Rekap Kehadiran</CardTitle>
+//         </CardHeader>
+//         <CardContent>
+//           <div className="overflow-x-auto">
+//             <table className="w-full">
+//               <thead>
+//                 <tr className="border-b border-slate-200">
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Nama</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Sesi</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Lokasi</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Metode</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Waktu</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Status</th>
+//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Aksi</th>
+//                 </tr>
+//               </thead>
+//               <tbody>
+//                 {filteredRecords.map((record) => (
+//                   <tr key={record.id} className="border-b border-slate-100 hover:bg-slate-50">
+//                     <td className="py-3 px-4 font-medium text-slate-900">{record.participantName}</td>
+//                     <td className="py-3 px-4 text-slate-700">{record.sessionTitle}</td>
+//                     <td className="py-3 px-4">
+//                       <div className="flex items-center gap-2 text-slate-600">
+//                         <MapPin size={14} />
+//                         {record.location}
+//                       </div>
+//                     </td>
+//                     <td className="py-3 px-4">{methodBadge(record.method)}</td>
+//                     <td className="py-3 px-4">
+//                       <div className="flex items-center gap-2 text-sm text-slate-600">
+//                         <Clock size={14} />
+//                         {record.timestamp}
+//                       </div>
+//                     </td>
+//                     <td className="py-3 px-4">
+//                       {record.status === "present" ? (
+//                         <span className="flex items-center gap-1 text-green-600 font-medium">
+//                           <CheckCircle2 size={16} />
+//                           Hadir
+//                         </span>
+//                       ) : (
+//                         <span className="flex items-center gap-1 text-red-600 font-medium">
+//                           <XCircle size={16} />
+//                           Tidak Hadir
+//                         </span>
+//                       )}
+//                     </td>
+//                     <td className="py-3 px-4">
+//                       <Button
+//                         variant="outline"
+//                         size="sm"
+//                         onClick={() =>
+//                           handleUpdateStatus(record.id, record.status === "present" ? "absent" : "present")
+//                         }
+//                       >
+//                         Ubah Status
+//                       </Button>
+//                     </td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         </CardContent>
+//       </Card>
+//     </div>
+//   )
+// }
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/hooks/use-toast";
+import {
+  Search,
+  MapPin,
+  Clock,
+  QrCode,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AttendanceRecord {
-  id: string
-  participantName: string
-  sessionTitle: string
-  location: string
-  method: "geo" | "qr" | "admin"
-  timestamp: string
-  status: "present" | "absent"
+  id: string;
+  participantName: string;
+  sessionTitle: string;
+  location: string;
+  method: "geo" | "qr" | "admin";
+  timestamp: string;
+  status: "present" | "absent";
+}
+
+interface TripRow {
+  id: string;
+  name: string;
+  status: string; // "ongoing" | "completed"
+}
+
+interface SessionRow {
+  id: string;
+  title: string;
 }
 
 export default function AdminAttendancePage() {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [filterMethod, setFilterMethod] = useState<string>("all")
-  const [filterLocation, setFilterLocation] = useState<string>("all")
+  // ====== Trip & Session state for QR panel ======
+  const [trips, setTrips] = useState<TripRow[]>([]);
+  const [selectedTripId, setSelectedTripId] = useState<string>("");
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
 
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: "1",
-      participantName: "Budi Santoso",
-      sessionTitle: "Explore Pulau Komodo",
-      location: "Pulau Komodo",
-      method: "geo",
-      timestamp: "28 Nov 2025, 10:15",
-      status: "present",
-    },
-    {
-      id: "2",
-      participantName: "Siti Rahayu",
-      sessionTitle: "Pantai Pink",
-      location: "Pantai Pink",
-      method: "qr",
-      timestamp: "28 Nov 2025, 08:30",
-      status: "present",
-    },
-    {
-      id: "3",
-      participantName: "Ahmad Wijaya",
-      sessionTitle: "Sunrise di Bukit Padar",
-      location: "Bukit Padar",
-      method: "geo",
-      timestamp: "28 Nov 2025, 06:45",
-      status: "present",
-    },
-    {
-      id: "4",
-      participantName: "Dewi Lestari",
-      sessionTitle: "Penjemputan di Bandara",
-      location: "Komodo Airport",
-      method: "admin",
-      timestamp: "27 Nov 2025, 13:20",
-      status: "present",
-    },
-    {
-      id: "5",
-      participantName: "Rudi Hartono",
-      sessionTitle: "Menuju Pelabuhan",
-      location: "Pelabuhan Labuan Bajo",
-      method: "geo",
-      timestamp: "27 Nov 2025, 14:30",
-      status: "present",
-    },
-  ])
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+  const [qrExpiresAt, setQrExpiresAt] = useState<string>("");
 
-  const locations = ["all", ...Array.from(new Set(attendanceRecords.map((r) => r.location)))]
+  // ====== Existing filters / table state ======
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterMethod, setFilterMethod] = useState<string>("all");
+  const [filterLocation, setFilterLocation] = useState<string>("all");
+  const [attendanceRecords, setAttendanceRecords] = useState<
+    AttendanceRecord[]
+  >([]);
+
+  /* ----------------------------------------------------------------
+   * 1. LOAD TRIPS SEKALI SAAT MOUNT
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/trips?take=100", { cache: "no-store" });
+        const j = await res.json();
+        if (!res.ok || !j?.ok)
+          throw new Error(j?.message || "Gagal memuat trip");
+
+        const list: TripRow[] = j.items ?? [];
+        setTrips(list);
+
+        // set default trip kalau mau
+        if (!selectedTripId && list.length > 0) {
+          setSelectedTripId(list[0].id);
+        }
+      } catch (e: any) {
+        toast({
+          title: "Error",
+          description: e?.message || "Gagal memuat trip",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [toast, selectedTripId]);
+
+  /* ----------------------------------------------------------------
+   * 2. LOAD SESSIONS SAAT TRIP DIGANTI
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    (async () => {
+      // reset dulu
+      setSessions([]);
+      setSelectedSessionId("");
+      setQrDataUrl("");
+      setQrExpiresAt("");
+
+      if (!selectedTripId) return;
+
+      try {
+        const res = await fetch(
+          `/api/trips/${encodeURIComponent(selectedTripId)}/sessions`,
+          { cache: "no-store" }
+        );
+        const j = await res.json();
+        if (!res.ok || !j?.ok)
+          throw new Error(j?.message || "Gagal memuat sesi");
+
+        const list: SessionRow[] = j.items ?? [];
+        setSessions(list);
+        setSelectedSessionId(list[0]?.id ?? "");
+      } catch (e: any) {
+        toast({
+          title: "Error",
+          description: e?.message || "Gagal memuat sesi",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [selectedTripId, toast]);
+
+  /* ----------------------------------------------------------------
+   * 3. ISSUE QR TIAP 60 DETIK (JIKA TRIP & SESSI TERPILIH)
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    let stop = false;
+    let timer: any;
+
+    async function issue() {
+      if (!selectedTripId || !selectedSessionId) {
+        setQrDataUrl("");
+        setQrExpiresAt("");
+        return;
+      }
+      try {
+        const res = await fetch("/api/checkins/qr/issue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tripId: selectedTripId,
+            sessionId: selectedSessionId,
+          }),
+        });
+        const j = await res.json();
+        if (!res.ok || !j?.ok)
+          throw new Error(j?.message || "Gagal membuat QR");
+        const { qrPayload, qrUrl, expiresAt } = j.data;
+
+        // fallback: kalau backend lama masih pakai qrUrl
+        const contentForQR = qrPayload || qrUrl;
+
+        const QRCode = (await import("qrcode")).default;
+        const dataUrl = await QRCode.toDataURL(contentForQR, {
+          margin: 1,
+          scale: 6,
+        });
+
+        if (!stop) {
+          setQrDataUrl(dataUrl);
+          setQrExpiresAt(expiresAt);
+        }
+      } catch {
+        // boleh diam saja biar UI tidak berisik
+      }
+    }
+
+    issue();
+    timer = setInterval(issue, 60_000);
+    return () => {
+      stop = true;
+      clearInterval(timer);
+    };
+  }, [selectedTripId, selectedSessionId]);
+
+  /* ----------------------------------------------------------------
+   * 4. LOAD ATTENDANCE LIST BY TRIP & METHOD
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    (async () => {
+      if (!selectedTripId) return;
+      try {
+        const url = `/api/attendance?tripId=${encodeURIComponent(
+          selectedTripId
+        )}&method=${encodeURIComponent(filterMethod)}`;
+        const res = await fetch(url, { cache: "no-store" });
+        const j = await res.json();
+        if (!res.ok || !j?.ok)
+          throw new Error(j?.message || "Gagal memuat absensi");
+        setAttendanceRecords(j.items || []);
+      } catch (e: any) {
+        toast({
+          title: "Error",
+          description: e?.message || "Gagal memuat absensi",
+          variant: "destructive",
+        });
+      }
+    })();
+  }, [selectedTripId, filterMethod, toast]);
+
+  const locations = useMemo(
+    () => [
+      "all",
+      ...Array.from(new Set(attendanceRecords.map((r) => r.location))),
+    ],
+    [attendanceRecords]
+  );
 
   const filteredRecords = attendanceRecords.filter((record) => {
     const matchesSearch =
-      record.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.participantName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       record.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.location.toLowerCase().includes(searchQuery.toLowerCase())
+      record.location.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesMethod = filterMethod === "all" || record.method === filterMethod
-    const matchesLocation = filterLocation === "all" || record.location === filterLocation
+    const matchesMethod =
+      filterMethod === "all" || record.method === filterMethod;
+    const matchesLocation =
+      filterLocation === "all" || record.location === filterLocation;
 
-    return matchesSearch && matchesMethod && matchesLocation
-  })
-
-  const handleUpdateStatus = (id: string, newStatus: "present" | "absent") => {
-    setAttendanceRecords(
-      attendanceRecords.map((record) => (record.id === id ? { ...record, status: newStatus } : record)),
-    )
-    toast({
-      title: "Status Diperbarui",
-      description: `Status kehadiran berhasil diubah menjadi ${newStatus === "present" ? "Hadir" : "Tidak Hadir"}.`,
-    })
-  }
-
-  const methodBadge = (method: string) => {
-    const styles = {
-      geo: "bg-blue-100 text-blue-700",
-      qr: "bg-purple-100 text-purple-700",
-      admin: "bg-slate-100 text-slate-700",
-    }
-    const icons = {
-      geo: <MapPin size={12} />,
-      qr: <QrCode size={12} />,
-      admin: <CheckCircle2 size={12} />,
-    }
-    const labels = {
-      geo: "GEO",
-      qr: "QR",
-      admin: "Admin",
-    }
-
-    return (
-      <span
-        className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full font-medium ${styles[method as keyof typeof styles]}`}
-      >
-        {icons[method as keyof typeof icons]}
-        {labels[method as keyof typeof labels]}
-      </span>
-    )
-  }
+    return matchesSearch && matchesMethod && matchesLocation;
+  });
 
   const stats = {
-    total: attendanceRecords.length,
-    geo: attendanceRecords.filter((r) => r.method === "geo").length,
-    qr: attendanceRecords.filter((r) => r.method === "qr").length,
-    admin: attendanceRecords.filter((r) => r.method === "admin").length,
-  }
+    total: filteredRecords.length,
+    geo: filteredRecords.filter((r) => r.method === "geo").length,
+    qr: filteredRecords.filter((r) => r.method === "qr").length,
+    admin: filteredRecords.filter((r) => r.method === "admin").length,
+  };
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">Absensi & Kehadiran</h1>
-        <p className="text-slate-600 mt-1">Rekap kehadiran peserta per lokasi dan waktu</p>
+        <h1 className="text-3xl font-bold text-slate-900">
+          Absensi & Kehadiran
+        </h1>
+        <p className="text-slate-600 mt-1">
+          Rekap kehadiran peserta per lokasi dan waktu
+        </p>
       </div>
+
+      {/* QR Panel per Trip + Sesi */}
+      <Card>
+        <CardHeader>
+          <CardTitle>QR Presensi Per Trip</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Pilih Trip</p>
+              <Select value={selectedTripId} onValueChange={setSelectedTripId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih trip" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trips.map((t) => (
+                    <SelectItem value={t.id} key={t.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{t.name}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            t.status === "ongoing"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {t.status === "ongoing" ? "Berjalan" : "Selesai"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500 mb-1">Pilih Sesi</p>
+              <Select
+                value={selectedSessionId}
+                onValueChange={setSelectedSessionId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Pilih sesi" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessions.map((s) => (
+                    <SelectItem value={s.id} key={s.id}>
+                      {s.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => setSelectedSessionId(selectedSessionId)}
+                disabled={
+                  !selectedTripId || !selectedSessionId || sessions.length === 0
+                }
+              >
+                <QrCode size={16} />
+                Refresh Sekarang
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            {qrDataUrl && selectedSessionId ? (
+              <>
+                <img
+                  src={qrDataUrl}
+                  alt="QR Presensi"
+                  className="w-56 h-56 rounded-xl border p-2 bg-white"
+                />
+                <p className="text-xs text-slate-500">
+                  Pindai untuk konfirmasi kehadiran · Kedaluwarsa:{" "}
+                  {qrExpiresAt
+                    ? new Date(qrExpiresAt).toLocaleTimeString("id-ID", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "-"}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-slate-500">
+                {selectedTripId
+                  ? "Pilih sesi terlebih dahulu"
+                  : "Pilih trip terlebih dahulu"}
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -178,7 +672,10 @@ export default function AdminAttendancePage() {
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={20}
+              />
               <Input
                 placeholder="Cari peserta atau lokasi..."
                 value={searchQuery}
@@ -226,27 +723,59 @@ export default function AdminAttendancePage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Nama</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Sesi</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Lokasi</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Metode</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Waktu</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Status</th>
-                  <th className="text-left py-3 px-4 font-semibold text-slate-700">Aksi</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Nama
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Sesi
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Lokasi
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Metode
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Waktu
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRecords.map((record) => (
-                  <tr key={record.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-4 font-medium text-slate-900">{record.participantName}</td>
-                    <td className="py-3 px-4 text-slate-700">{record.sessionTitle}</td>
+                  <tr
+                    key={record.id}
+                    className="border-b border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="py-3 px-4 font-medium text-slate-900">
+                      {record.participantName}
+                    </td>
+                    <td className="py-3 px-4 text-slate-700">
+                      {record.sessionTitle}
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2 text-slate-600">
                         <MapPin size={14} />
                         {record.location}
                       </div>
                     </td>
-                    <td className="py-3 px-4">{methodBadge(record.method)}</td>
+                    <td className="py-3 px-4">
+                      {record.method === "geo" ? (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                          GEO
+                        </span>
+                      ) : record.method === "qr" ? (
+                        <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full">
+                          QR
+                        </span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded-full">
+                          Admin
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <Clock size={14} />
@@ -266,24 +795,20 @@ export default function AdminAttendancePage() {
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleUpdateStatus(record.id, record.status === "present" ? "absent" : "present")
-                        }
-                      >
-                        Ubah Status
-                      </Button>
-                    </td>
                   </tr>
                 ))}
+                {filteredRecords.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-slate-500">
+                      Belum ada data
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
