@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "please-set-a-secure-secret";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "7d";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN ?? "2h";
 
 export function signToken(payload: any) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });

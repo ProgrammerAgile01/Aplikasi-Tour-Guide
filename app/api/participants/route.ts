@@ -28,6 +28,84 @@ function generateRandomPassword(len = 10) {
     .slice(0, len);
 }
 
+// ==================== WA MESSAGE BUILDERS ====================
+
+function buildNewAccountWhatsAppMessage(opts: {
+  trip: any;
+  participant: any;
+  email: string;
+  password: string;
+  loginUrl: string;
+}) {
+  const { trip, participant, email, password, loginUrl } = opts;
+
+  const lines: string[] = [];
+  lines.push(`Halo ${participant.name}! 👋`);
+  lines.push("");
+  lines.push("Kamu resmi terdaftar sebagai peserta trip:");
+  lines.push(`📍 Trip: ${trip.name}`);
+  if (trip.location) {
+    lines.push(`🌍 Lokasi: ${trip.location}`);
+  }
+  lines.push("");
+  lines.push("Berikut akun untuk akses aplikasi Tour Guide:");
+  lines.push("");
+  lines.push("🔐 Login");
+  lines.push(`• Email   : ${email}`);
+  lines.push(`• Password: ${password}`);
+  lines.push("");
+  lines.push("Silakan login di:");
+  lines.push(loginUrl);
+  lines.push("");
+  lines.push(
+    "Setelah berhasil login, segera ganti password di menu Profil demi keamanan ya 🙏"
+  );
+  lines.push("");
+  lines.push("Terima kasih,");
+  lines.push("Tim Tour Guide");
+
+  return lines.join("\n");
+}
+
+function buildExistingAccountWhatsAppMessage(opts: {
+  trip: any;
+  participant: any;
+  email: string;
+  loginUrl: string;
+}) {
+  const { trip, participant, email, loginUrl } = opts;
+
+  const lines: string[] = [];
+  lines.push(`Halo ${participant.name}! 👋`);
+  lines.push("");
+  lines.push("Nomor WhatsApp kamu telah ditambahkan sebagai peserta trip:");
+  lines.push(`📍 Trip: ${trip.name}`);
+  if (trip.location) {
+    lines.push(`🌍 Lokasi: ${trip.location}`);
+  }
+  lines.push("");
+  lines.push(
+    "Silakan login ke aplikasi Tour Guide dengan akun yang sudah pernah kami kirim sebelumnya."
+  );
+  lines.push("");
+  lines.push("🔐 Login:");
+  lines.push(`• Email: ${email}`);
+  lines.push("");
+  lines.push("Akses aplikasi di:");
+  lines.push(loginUrl);
+  lines.push("");
+  lines.push(
+    "Jika lupa password, kamu bisa gunakan fitur *Lupa Password* di halaman login. 🙏"
+  );
+  lines.push("");
+  lines.push("Terima kasih,");
+  lines.push("Tim Tour Guide");
+
+  return lines.join("\n");
+}
+
+// ==================== HANDLERS ====================
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -77,6 +155,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const data = CreateParticipantSchema.parse(body);
 
+    // cek trip
     const trip = await prisma.trip.findUnique({ where: { id: data.tripId } });
     if (!trip) {
       return NextResponse.json(
@@ -84,6 +163,8 @@ export async function POST(req: Request) {
         { status: 404 }
       );
     }
+
+    // ==================== USER & PARTICIPANT ====================
 
     // Cek user by whatsapp
     let user = await prisma.user
@@ -99,7 +180,7 @@ export async function POST(req: Request) {
         where: { id: user.id },
         data: { name: data.name, whatsapp: data.whatsapp },
       });
-      // Tidak membuat password baru. Biarkan kolom initialPassword participant tetap null (atau tetap nilai lama jika sebelumnya tercatat).
+      // Tidak membuat password baru (biarkan pakai yg lama)
     } else {
       // Buat user baru + password awal
       const email = generateEmailFromName(data.name);
@@ -141,22 +222,81 @@ export async function POST(req: Request) {
 
     // Pastikan relasi UserTrip (user ↔ trip)
     const link = await prisma.userTrip.findUnique({
-      where: { userId_tripId: { userId: user.id, tripId: data.tripId } },
+      where: { userId_tripId: { userId: user!.id, tripId: data.tripId } },
     });
     if (!link) {
       await prisma.userTrip.create({
-        data: { userId: user.id, tripId: data.tripId, roleOnTrip: "PESERTA" },
+        data: { userId: user!.id, tripId: data.tripId, roleOnTrip: "PESERTA" },
       });
     }
 
     const userResp = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      whatsapp: user.whatsapp,
-      role: user.role,
-      isActive: user.isActive,
+      id: user!.id,
+      email: user!.email,
+      name: user!.name,
+      whatsapp: user!.whatsapp,
+      role: user!.role,
+      isActive: user!.isActive,
     };
+
+    // ==================== ENQUEUE WHATSAPP MESSAGE ====================
+
+    try {
+      const origin = new URL(req.url).origin; // contoh: http://localhost:3010
+      const loginUrl = `${origin}/login`; // sesuaikan kalau route login beda
+
+      let content: string;
+      let template: string;
+
+      if (plainPassword && (loginEmailForParticipant || userResp.email)) {
+        // user baru → kirim email + password
+        const emailToSend = loginEmailForParticipant || userResp.email;
+        content = buildNewAccountWhatsAppMessage({
+          trip,
+          participant: createdParticipant,
+          email: emailToSend,
+          password: plainPassword,
+          loginUrl,
+        });
+        template = "TRIP_ACCOUNT_CREATED";
+      } else {
+        // user sudah pernah ada → kirim info link ke trip + email saja
+        content = buildExistingAccountWhatsAppMessage({
+          trip,
+          participant: createdParticipant,
+          email: userResp.email,
+          loginUrl,
+        });
+        template = "TRIP_ACCOUNT_LINKED";
+      }
+
+      await prisma.whatsAppMessage.create({
+        data: {
+          tripId: data.tripId,
+          participantId: createdParticipant.id,
+          to: data.whatsapp,
+          template,
+          content,
+          payload: {
+            type: template,
+            tripId: data.tripId,
+            participantId: createdParticipant.id,
+            userId: userResp.id,
+          },
+          status: "PENDING",
+        },
+      });
+
+      // 🔔 Trigger worker WA (fire-and-forget)
+      fetch(`${origin}/api/wa/worker-send`, {
+        method: "POST",
+      }).catch((e) => {
+        console.error("Gagal memanggil worker-send dari /api/participants:", e);
+      });
+    } catch (waErr) {
+      console.error("Gagal enqueue WA credential peserta:", waErr);
+      // tidak menggagalkan pembuatan peserta
+    }
 
     return NextResponse.json(
       {

@@ -680,7 +680,7 @@ export default function AdminParticipantsPage() {
       <Dialog open={credentialModalOpen} onOpenChange={setCredentialModalOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Credential Akun Baru</DialogTitle>
+            <DialogTitle>Kredensial Akun Baru</DialogTitle>
           </DialogHeader>
           <div className="p-4">
             <p className="text-sm text-slate-700">
