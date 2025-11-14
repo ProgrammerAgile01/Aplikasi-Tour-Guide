@@ -6,16 +6,6 @@ export const runtime = "nodejs";
 
 const AUTH_COOKIE_NAME = "token";
 
-// Ambil tripId dari URL path: /api/trips/<tripId>/map-journey
-function extractTripIdFromUrl(pathname: string): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  // contoh: ["api","trips","komodo-2025","map-journey"]
-  const i = segments.indexOf("trips");
-  if (i === -1) return null;
-  return segments[i + 1] || null;
-}
-
-// payload token (minimal)
 type TokenTrip = {
   id: string;
   name: string;
@@ -32,6 +22,13 @@ type TokenPayload = {
   };
   trips: TokenTrip[];
 };
+
+function extractTripIdFromUrl(pathname: string): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  const i = segments.indexOf("trips");
+  if (i === -1) return null;
+  return segments[i + 1] || null;
+}
 
 function mapCategoryToType(
   category?: string | null
@@ -56,6 +53,37 @@ function getCookieValue(cookies: string | null, name: string): string | null {
   return null;
 }
 
+// Bangun rute trip (semua titik jadwal) pakai OSRM
+async function buildTripRoutePath(
+  locations: { lat: number; lng: number }[]
+): Promise<{ lat: number; lng: number }[]> {
+  try {
+    if (locations.length < 2) return [];
+
+    const coords = locations
+      .map((l) => `${l.lng},${l.lat}`) // OSRM: lng,lat
+      .join(";");
+
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("OSRM trip route error");
+    const data = await res.json();
+
+    const routeCoords: { lat: number; lng: number }[] =
+      data?.routes?.[0]?.geometry?.coordinates?.map((c: [number, number]) => ({
+        lng: c[0],
+        lat: c[1],
+      })) || [];
+
+    return routeCoords;
+  } catch (e) {
+    console.warn("Gagal hit OSRM untuk rute trip, fallback garis lurus:", e);
+    // fallback: kalau OSRM error, tetap boleh gambar garis lurus
+    return locations.map((l) => ({ lat: l.lat, lng: l.lng }));
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -68,7 +96,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // 1️⃣ Baca token dari cookie
+    // baca token dari cookie
     const cookieHeader = req.headers.get("cookie");
     const token = getCookieValue(cookieHeader, AUTH_COOKIE_NAME);
 
@@ -81,7 +109,6 @@ export async function GET(req: Request) {
           process.env.JWT_SECRET || "dev-secret"
         ) as TokenPayload;
 
-        // cari trip yg sama dengan tripId dari URL
         const tripMeta = payload.trips?.find((t) => t.id === tripId);
         if (tripMeta?.participantId) {
           participantId = tripMeta.participantId;
@@ -91,13 +118,10 @@ export async function GET(req: Request) {
       }
     }
 
-    // 2️⃣ Ambil trip (untuk judul)
+    // ambil trip
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      select: {
-        id: true,
-        name: true,
-      },
+      select: { id: true, name: true },
     });
 
     if (!trip) {
@@ -107,7 +131,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // 3️⃣ Ambil semua schedule yang punya koordinat
+    // ambil semua schedule yang punya koordinat
     const schedules = await prisma.schedule.findMany({
       where: {
         tripId,
@@ -117,20 +141,17 @@ export async function GET(req: Request) {
       orderBy: [{ day: "asc" }, { timeText: "asc" }],
     });
 
-    // 4️⃣ Ambil attendance untuk peserta ini (kalau ada participantId)
+    // attendance untuk peserta ini
     let attendedSessionIds = new Set<string>();
     if (participantId) {
       const attendances = await prisma.attendance.findMany({
-        where: {
-          tripId,
-          participantId,
-        },
+        where: { tripId, participantId },
         select: { sessionId: true },
       });
       attendedSessionIds = new Set(attendances.map((a) => a.sessionId));
     }
 
-    // 5️⃣ Map ke locations
+    // locations untuk frontend
     const locations = schedules.map((s) => {
       const lat = (s.locationLat as any)?.toNumber
         ? (s.locationLat as any).toNumber()
@@ -153,8 +174,8 @@ export async function GET(req: Request) {
       };
     });
 
-    // 6️⃣ Hitung center (rata-rata koordinat)
-    let center = { lat: -8.55, lng: 119.5 }; // fallback Komodo area
+    // center
+    let center = { lat: -8.55, lng: 119.5 };
     if (locations.length > 0) {
       const avgLat =
         locations.reduce((sum, loc) => sum + loc.lat, 0) / locations.length;
@@ -163,14 +184,17 @@ export async function GET(req: Request) {
       center = { lat: avgLat, lng: avgLng };
     }
 
+    // build trip route lewat OSRM
+    const routePath = await buildTripRoutePath(
+      locations.map((l) => ({ lat: l.lat, lng: l.lng }))
+    );
+
     return NextResponse.json({
       ok: true,
-      trip: {
-        id: trip.id,
-        name: trip.name,
-      },
+      trip: { id: trip.id, name: trip.name },
       center,
       locations,
+      routePath,
     });
   } catch (err) {
     console.error("GET /api/trips/[tripId]/map-journey error:", err);

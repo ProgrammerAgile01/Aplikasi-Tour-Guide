@@ -283,7 +283,9 @@ type OverviewData = {
     title: string;
     time: string;
     date: string;
-    location?: { lat: string | number; lng: string | number };
+    locationName?: string | null;
+    locationLat?: number | string | null;
+    locationLon?: number | string | null;
   };
   todaysSummary?: {
     sessions: number;
@@ -345,8 +347,10 @@ export default function OverviewPage() {
     })();
   }, [tripId, toast]);
 
+  const nextAgenda = data?.nextAgenda;
+
   // pakai geo reminder saat data nextAgenda tersedia
-  useGeoReminder(data?.nextAgenda, true);
+  useGeoReminder(nextAgenda ?? null, true);
 
   // restore check-in status (localStorage)
   useEffect(() => {
@@ -366,9 +370,11 @@ export default function OverviewPage() {
   }, [tripId, data?.nextAgenda?.id]);
 
   const handleViewLocation = () => {
-    const loc = data?.nextAgenda?.location;
-    if (!loc) return;
-    const url = `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`;
+    const lat = data?.nextAgenda?.locationLat;
+    const lng = data?.nextAgenda?.locationLon;
+    if (lat == null || lng == null) return;
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
     window.open(url, "_blank");
     toast({ description: "Membuka Google Maps..." });
   };
@@ -381,7 +387,6 @@ export default function OverviewPage() {
   // fallback agar UI tetap ter-render rapi walau data null
   const title = data?.title ?? "—";
   const subtitle = data?.subtitle ?? "—";
-  const nextAgenda = data?.nextAgenda;
   const summary = data?.todaysSummary;
   const announcements = data?.announcements ?? [];
 
@@ -441,7 +446,7 @@ export default function OverviewPage() {
                   onClick={handleViewLocation}
                   variant="outline"
                   className="flex-1 gap-2 text-sm bg-transparent"
-                  disabled={!nextAgenda.location}
+                  disabled={!nextAgenda.locationLat || !nextAgenda.locationLon}
                 >
                   <MapPin size={16} />
                   Lihat Lokasi
