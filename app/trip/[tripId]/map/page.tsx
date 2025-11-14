@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { MapPin, Navigation, Anchor, Compass, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -32,6 +32,7 @@ interface MapApiResponse {
     lng: number;
   };
   locations?: Location[];
+  routePath?: { lat: number; lng: number }[];
   message?: string;
 }
 
@@ -49,10 +50,25 @@ export default function MapJourneyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Posisi user (realtime)
+  const [userPosition, setUserPosition] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  const [routePath, setRoutePath] = useState<{ lat: number; lng: number }[]>(
+    []
+  );
+
   // Leaflet refs
   const mapContainerId = "trip-map-container";
   const mapRef = useRef<L.Map | null>(null);
-  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null); // untuk titik lokasi trip & rute kapal
+  const userMarkerRef = useRef<L.Marker | null>(null); // marker posisi user
+  const userAccuracyRef = useRef<L.Circle | null>(null); // lingkaran akurasi
+  const userRouteLayerRef = useRef<L.LayerGroup | null>(null); // layer khusus rute user → target
+  const userRouteRef = useRef<L.Polyline | null>(null); // polyline rute user → target
 
   const getIconForType = (type: string) => {
     switch (type) {
@@ -81,7 +97,55 @@ export default function MapJourneyPage() {
   const progress =
     totalLocations > 0 ? Math.round((visitedCount / totalLocations) * 100) : 0;
 
-  // fetch data dari API (visited sudah dihitung di backend berdasarkan JWT)
+  // Lokasi pertama yang belum dikunjungi (berdasarkan day + time)
+  const nextUnvisited = useMemo(() => {
+    const unvisited = locations.filter((l) => !l.visited);
+    if (!unvisited.length) return null;
+    return [...unvisited].sort((a, b) => {
+      if (a.day !== b.day) return a.day - b.day;
+      return a.time.localeCompare(b.time);
+    })[0];
+  }, [locations]);
+
+  // Custom marker pin tanpa emoji (trip markers)
+  const createMarkerIcon = (isVisited: boolean) => {
+    const bg = isVisited ? "#22c55e" : "#3b82f6"; // hijau / biru
+
+    return L.divIcon({
+      className: "",
+      html: `
+        <div style="
+          position: relative;
+          width: 28px;
+          height: 28px;
+          background: ${bg};
+          border-radius: 50%;
+          border: 2px solid white;
+          box-shadow: 0 0 6px rgba(0,0,0,0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <div style="
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 10px solid ${bg};
+          "></div>
+        </div>
+      `,
+      iconSize: [28, 38],
+      iconAnchor: [14, 38],
+      popupAnchor: [0, -32],
+    });
+  };
+
+  // Fetch data dari API (visited dihitung di backend via JWT)
   useEffect(() => {
     if (!tripId) return;
 
@@ -93,7 +157,6 @@ export default function MapJourneyPage() {
       try {
         const res = await fetch(`/api/trips/${tripId}/map-journey`, {
           cache: "no-store",
-          // cookie auth (dari login) akan ikut otomatis karena same-origin
         });
 
         if (!res.ok) {
@@ -110,6 +173,7 @@ export default function MapJourneyPage() {
 
         setTripName(data.trip?.name || "Peta Perjalanan");
         setLocations(data.locations || []);
+        setRoutePath(data.routePath || []);
 
         if (data.center) {
           setCenter(data.center);
@@ -137,7 +201,7 @@ export default function MapJourneyPage() {
   // Init Leaflet map (sekali)
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (mapRef.current) return; // sudah dibuat
+    if (mapRef.current) return;
 
     const container = document.getElementById(mapContainerId);
     if (!container) return;
@@ -154,18 +218,26 @@ export default function MapJourneyPage() {
     }).addTo(map);
 
     const markersLayer = L.layerGroup().addTo(map);
+    const userRouteLayer = L.layerGroup().addTo(map);
 
     mapRef.current = map;
     markersLayerRef.current = markersLayer;
+    userRouteLayerRef.current = userRouteLayer;
 
     return () => {
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
+      userRouteLayerRef.current = null;
+      userMarkerRef.current = null;
+      userAccuracyRef.current = null;
+      userRouteRef.current = null;
     };
+    // center di dependency cuma untuk initial, tidak apa-apa dipanggil sekali
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center.lat, center.lng]);
 
-  // Update markers saat locations berubah
+  // Update markers + polyline trip (pakai OSRM kalau ada)
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current) return;
     const map = mapRef.current;
@@ -183,12 +255,8 @@ export default function MapJourneyPage() {
     locations.forEach((loc, index) => {
       const isVisited = loc.visited;
 
-      const marker = L.circleMarker([loc.lat, loc.lng], {
-        radius: 8,
-        weight: 2,
-        color: isVisited ? "#16a34a" : "#2563eb", // green vs blue
-        fillColor: isVisited ? "#22c55e" : "#3b82f6",
-        fillOpacity: 0.8,
+      const marker = L.marker([loc.lat, loc.lng], {
+        icon: createMarkerIcon(isVisited),
       });
 
       const popupHtml = `
@@ -196,6 +264,9 @@ export default function MapJourneyPage() {
         <strong>#${index + 1} ${loc.name}</strong><br/>
         Hari ${loc.day} • ${loc.time}<br/>
         ${loc.locationText ? `<small>${loc.locationText}</small><br/>` : ""}
+        <small>Lat: ${loc.lat.toFixed(4)}, Lng: ${loc.lng.toFixed(
+        4
+      )}</small><br/>
         ${
           isVisited
             ? `<span style="color:#16a34a; font-weight:600;">✓ Sudah dikunjungi</span>`
@@ -204,25 +275,195 @@ export default function MapJourneyPage() {
       </div>
     `;
 
-      marker.bindPopup(popupHtml, {
-        closeButton: true,
-        offset: L.point(0, -4),
-      });
+      marker.bindPopup(popupHtml);
 
       marker.on("click", () => {
-        setActiveLocation(loc); // tetap sync dengan card di bawah
-        marker.openPopup(); // pastikan popup kebuka
+        setActiveLocation(loc);
+        marker.openPopup();
       });
 
       marker.addTo(layer);
       bounds.push([loc.lat, loc.lng]);
     });
 
+    // Pakai routePath dari backend (OSRM); kalau kosong baru fallback garis lurus
+    let tripPath: L.LatLngExpression[] = [];
+
+    if (routePath.length > 1) {
+      tripPath = routePath.map((p) => [p.lat, p.lng] as L.LatLngExpression);
+    } else if (locations.length > 1) {
+      tripPath = locations.map(
+        (loc) => [loc.lat, loc.lng] as L.LatLngExpression
+      );
+    }
+
+    if (tripPath.length > 1) {
+      const polyline = L.polyline(tripPath, {
+        color: "#0ea5e9",
+        weight: 3,
+        opacity: 0.9,
+        lineJoin: "round",
+        lineCap: "round",
+      });
+      polyline.addTo(layer);
+    }
+
     if (bounds.length > 0) {
       const latLngBounds = L.latLngBounds(bounds);
       map.fitBounds(latLngBounds, { padding: [24, 24] });
     }
-  }, [locations, center]);
+  }, [locations, center, routePath]);
+
+  // Geolocation: pantau posisi user (tanpa tergantung map)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!("geolocation" in navigator)) {
+      setGeoError("Perangkat tidak mendukung GPS / geolocation.");
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setUserPosition({ lat: latitude, lng: longitude });
+        setGeoError(null);
+      },
+      (err) => {
+        console.warn("Geolocation error", err);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError(
+            "Izin lokasi ditolak. Aktifkan akses lokasi untuk melihat posisi Anda di peta."
+          );
+        } else {
+          setGeoError("Tidak bisa mendapatkan lokasi perangkat.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 15000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  // Gambar / update marker posisi user + auto-center pertama kali
+  useEffect(() => {
+    if (!userPosition || !mapRef.current) return;
+    const map = mapRef.current;
+
+    // marker user
+    if (!userMarkerRef.current) {
+      const userIcon = L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(37,99,235,0.9);
+          "></div>
+        `,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
+      });
+
+      userMarkerRef.current = L.marker([userPosition.lat, userPosition.lng], {
+        icon: userIcon,
+      }).addTo(map);
+
+      // saat pertama kali dapat posisi, langsung center ke user
+      map.setView([userPosition.lat, userPosition.lng], 13, { animate: true });
+    } else {
+      userMarkerRef.current.setLatLng([userPosition.lat, userPosition.lng]);
+    }
+
+    // lingkaran akurasi (opsional, pakai radius approx 50m jika tidak tahu)
+    if (!userAccuracyRef.current) {
+      userAccuracyRef.current = L.circle([userPosition.lat, userPosition.lng], {
+        radius: 50,
+        color: "#2563eb",
+        weight: 1,
+        opacity: 0.3,
+        fillColor: "#60a5fa",
+        fillOpacity: 0.1,
+      }).addTo(map);
+    } else {
+      userAccuracyRef.current.setLatLng([userPosition.lat, userPosition.lng]);
+    }
+  }, [userPosition]);
+
+  // Bangun rute dari posisi user → lokasi pertama yang belum dikunjungi (pakai OSRM)
+  useEffect(() => {
+    if (!userPosition || !nextUnvisited) {
+      // kalau tidak ada target, hapus rute lama
+      if (userRouteRef.current && userRouteLayerRef.current) {
+        userRouteLayerRef.current.removeLayer(userRouteRef.current);
+        userRouteRef.current = null;
+      }
+      return;
+    }
+    if (!mapRef.current || !userRouteLayerRef.current) return;
+
+    let aborted = false;
+
+    async function buildRoute() {
+      try {
+        const from = `${userPosition.lng},${userPosition.lat}`;
+        const to = `${nextUnvisited.lng},${nextUnvisited.lat}`;
+
+        const url = `https://router.project-osrm.org/route/v1/driving/${from};${to}?overview=full&geometries=geojson`;
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Gagal membangun rute OSRM");
+        const data = await res.json();
+
+        const coords: [number, number][] =
+          data?.routes?.[0]?.geometry?.coordinates || [];
+
+        if (!coords.length || aborted) return;
+
+        const latLngs = coords.map(
+          (c) => [c[1], c[0]] as L.LatLngExpression // [lat, lng]
+        );
+
+        const layer = userRouteLayerRef.current!;
+        // hapus rute lama jika ada
+        if (userRouteRef.current) {
+          layer.removeLayer(userRouteRef.current);
+        }
+
+        const polyline = L.polyline(latLngs, {
+          color: "#f97316", // oranye biar beda
+          weight: 4,
+          opacity: 0.9,
+          lineJoin: "round",
+          lineCap: "round",
+        });
+
+        polyline.addTo(layer);
+        userRouteRef.current = polyline;
+
+        // fit ke rute user → target
+        const map = mapRef.current!;
+        map.fitBounds(polyline.getBounds(), { padding: [32, 32] });
+      } catch (e) {
+        console.warn("Gagal membuat rute user → lokasi pertama:", e);
+      }
+    }
+
+    buildRoute();
+
+    return () => {
+      aborted = true;
+    };
+  }, [userPosition, nextUnvisited]);
 
   return (
     <div className="w-full min-h-screen bg-background pb-20">
@@ -254,6 +495,16 @@ export default function MapJourneyPage() {
             <p className="text-2xl font-bold">{progress}%</p>
           </div>
         </div>
+
+        {/* {geoError && (
+          <p className="text-[11px] text-red-200 mt-1 max-w-md">{geoError}</p>
+        )}
+        {userPosition && !geoError && (
+          <p className="text-[11px] text-blue-100/80 mt-1">
+            Posisi Anda: {userPosition.lat.toFixed(4)},{" "}
+            {userPosition.lng.toFixed(4)}
+          </p>
+        )} */}
       </div>
 
       <div className="p-4 space-y-4">
@@ -278,19 +529,25 @@ export default function MapJourneyPage() {
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow"></div>
                 <span className="text-xs text-muted-foreground">
-                  Dikunjungi
+                  Lokasi trip dikunjungi
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-blue-600 rounded-full border-2 border-white shadow"></div>
                 <span className="text-xs text-muted-foreground">
-                  Belum Dikunjungi
+                  Lokasi trip belum dikunjungi
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              {/* <div className="flex items-center gap-2">
                 <Navigation className="w-3 h-3 text-blue-600" />
                 <span className="text-xs text-muted-foreground">
-                  Rute Kapal
+                  Garis rute kapal (trip)
+                </span>
+              </div> */}
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full border-2 border-white shadow bg-orange-400"></div>
+                <span className="text-xs text-muted-foreground">
+                  Rute Anda → lokasi berikutnya
                 </span>
               </div>
             </div>
@@ -348,6 +605,14 @@ export default function MapJourneyPage() {
                           <h3 className="font-semibold text-foreground">
                             {location.name}
                           </h3>
+                          {nextUnvisited?.id === location.id && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] border-orange-400 text-orange-500"
+                            >
+                              Tujuan berikutnya
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
                           Hari {location.day} • Pukul {location.time}

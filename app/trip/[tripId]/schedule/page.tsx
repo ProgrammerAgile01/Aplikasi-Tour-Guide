@@ -1,4 +1,3 @@
-// app/trip/[tripId]/schedule/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

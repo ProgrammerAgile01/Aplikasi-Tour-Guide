@@ -50,8 +50,7 @@ export async function POST(req: Request) {
       include: { trip: true },
     });
 
-    // Ambil semua Participant yang match dengan user ini
-    //    (berdasarkan email / whatsapp) untuk semua trip
+    // Ambil semua Participant yang match dengan user ini (berdasarkan email / whatsapp) untuk semua trip
     const participants = await prisma.participant.findMany({
       where: {
         OR: [{ loginEmail: user.email }, { whatsapp: user.whatsapp }],
@@ -68,18 +67,34 @@ export async function POST(req: Request) {
       participantByTripId.set(p.tripId, p.id);
     }
 
+    // (opsional tapi recommended) backfill participantId di UserTrip yang masih null
+    await Promise.all(
+      userTrips.map((ut) => {
+        if (ut.participantId) return null; // sudah terisi
+        const pid = participantByTripId.get(ut.tripId);
+        if (!pid) return null;
+
+        return prisma.userTrip.update({
+          where: { id: ut.id },
+          data: { participantId: pid },
+        });
+      })
+    );
+
     // Bentuk payload trips untuk token & response
     const tripsPayload = userTrips.map((ut) => ({
       id: ut.trip.id,
       name: ut.trip.name,
       roleOnTrip: ut.roleOnTrip,
-      participantId: participantByTripId.get(ut.tripId) ?? null,
+      participantId:
+        ut.participantId ?? participantByTripId.get(ut.tripId) ?? null,
     }));
 
     const userPayload = {
       id: user.id,
       name: user.name,
       email: user.email,
+      whatsapp: user.whatsapp, // 🔥 penting buat fallback attendance
       role: user.role,
     };
 

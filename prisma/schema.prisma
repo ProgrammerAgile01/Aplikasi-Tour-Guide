@@ -131,6 +131,7 @@ model Participant {
   feedbacks         Feedback[]
   whatsappMessages WhatsAppMessage[]
   attendances      Attendance[]
+  userTrips         UserTrip[]
   galleries         Gallery[]
 
   @@index([tripId])
@@ -157,15 +158,18 @@ model UserTrip {
   id         String   @id @default(cuid())
   userId     String
   tripId     String
+  participantId String?
   roleOnTrip String?   // optional, e.g. "PESERTA", "GUIDE"
   createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
 
   @@unique([userId, tripId])
   @@index([userId])
   @@index([tripId])
+  @@index([participantId])
 }
 
 enum CheckinMethod {
@@ -238,6 +242,16 @@ model WhatsAppMessage {
   @@index([tripId])
   @@index([participantId])
   @@index([status, createdAt])
+}
+
+model Setting {
+  id          String   @id       // kita pakai "GLOBAL" sebagai id tetap
+  logoUrl     String?  @db.VarChar(512)
+  tripName    String?  @db.VarChar(191)
+  description String?  @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 enum GalleryStatus {

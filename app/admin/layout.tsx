@@ -18,6 +18,7 @@ import {
   CircleUser,
   Star,
   Phone,
+  Settings,
   Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ export default function AdminLayout({
     { name: "Rating", path: "/admin/feedback", icon: Star },
     { name: "Galeri", path: "/admin/gallery", icon: Camera },
     { name: "Panel WhatsApp", path: "/admin/whatsapp-panel", icon: Phone },
+    { name: "Pengaturan", path: "/admin/settings", icon: Settings },
   ];
 
   return (

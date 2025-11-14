@@ -226,7 +226,12 @@ export async function POST(req: Request) {
     });
     if (!link) {
       await prisma.userTrip.create({
-        data: { userId: user!.id, tripId: data.tripId, roleOnTrip: "PESERTA" },
+        data: {
+          userId: user!.id,
+          tripId: data.tripId,
+          roleOnTrip: "PESERTA",
+          participantId: createdParticipant.id,
+        },
       });
     }
 
