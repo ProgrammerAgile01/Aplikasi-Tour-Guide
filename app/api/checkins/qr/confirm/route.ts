@@ -1,3 +1,4 @@
+//app/api/checkins/qr/confirm/route.ts
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";

@@ -39,6 +39,7 @@ model Trip {
   feedbacks     Feedback[] 
   whatsappMessages WhatsAppMessage[]
   attendances      Attendance[]
+  galleries        Gallery[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -80,6 +81,7 @@ model Schedule {
   updatedAt DateTime? @updatedAt
 
   attendances      Attendance[]
+  galleries        Gallery[]
 
   @@index([tripId])
   @@index([tripId, day])
@@ -129,6 +131,7 @@ model Participant {
   feedbacks         Feedback[]
   whatsappMessages WhatsAppMessage[]
   attendances      Attendance[]
+  galleries         Gallery[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -235,4 +238,34 @@ model WhatsAppMessage {
   @@index([tripId])
   @@index([participantId])
   @@index([status, createdAt])
+}
+
+enum GalleryStatus {
+  PENDING
+  APPROVED
+}
+
+model Gallery {
+  id            String   @id @default(cuid())
+
+  tripId        String
+  trip          Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  sessionId     String
+  session       Schedule    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  note          String?
+  imageUrl      String   @db.VarChar(512)
+
+  status        GalleryStatus @default(PENDING)  // 👈 status: PENDING / APPROVED
+
+  createdAt     DateTime @default(now())
+
+  @@index([tripId])
+  @@index([participantId])
+  @@index([sessionId])
+  @@index([status])
 }

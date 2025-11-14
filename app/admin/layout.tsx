@@ -18,9 +18,11 @@ import {
   CircleUser,
   Star,
   Phone,
+  Camera,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import GalleryPage from "../trip/[tripId]/gallery/page";
 
 export default function AdminLayout({
   children,
@@ -46,6 +48,7 @@ export default function AdminLayout({
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
     { name: "Pengguna", path: "/admin/users", icon: CircleUser },
     { name: "Rating", path: "/admin/feedback", icon: Star },
+    { name: "Galeri", path: "/admin/gallery", icon: Camera },
     { name: "Panel WhatsApp", path: "/admin/whatsapp-panel", icon: Phone },
   ];
 

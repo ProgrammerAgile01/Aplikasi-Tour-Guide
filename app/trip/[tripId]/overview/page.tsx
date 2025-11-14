@@ -264,7 +264,6 @@ import {
   BookOpen,
   MessageSquare,
   Loader2,
-  Pin,
   AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -273,6 +272,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter, useParams } from "next/navigation";
 import { useGeoReminder } from "@/hooks/use-geo-reminder";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-client";
 
 type OverviewData = {
   id: string;
@@ -305,6 +305,8 @@ export default function OverviewPage() {
   const router = useRouter();
   const params = useParams<{ tripId: string }>();
   const tripId = params?.tripId as string;
+
+  const { user } = useAuth(); // ✅ ambil user
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -348,22 +350,31 @@ export default function OverviewPage() {
   // pakai geo reminder saat data nextAgenda tersedia
   useGeoReminder(data?.nextAgenda, true);
 
-  // restore check-in status (localStorage)
+  // restore check-in status (localStorage) PER USER
   useEffect(() => {
-    if (!tripId || !data?.nextAgenda?.id) return;
+    if (!tripId || !data?.nextAgenda?.id || !user?.id) return;
+
     const sessionId = data.nextAgenda.id;
-    const storedStatus = localStorage.getItem(`checkin-${tripId}-${sessionId}`);
-    if (storedStatus) {
-      const parsed = JSON.parse(storedStatus);
-      setCheckInStatus({
-        checkedIn: true,
-        method: parsed.method,
-        timestamp: parsed.checkedInAt,
-      });
-    } else {
+    const key = `checkin-${tripId}-${sessionId}-${user.id}`; // ✅ include user.id
+
+    try {
+      const storedStatus =
+        typeof window !== "undefined" ? localStorage.getItem(key) : null;
+
+      if (storedStatus) {
+        const parsed = JSON.parse(storedStatus);
+        setCheckInStatus({
+          checkedIn: true,
+          method: parsed.method,
+          timestamp: parsed.checkedInAt,
+        });
+      } else {
+        setCheckInStatus({ checkedIn: false });
+      }
+    } catch {
       setCheckInStatus({ checkedIn: false });
     }
-  }, [tripId, data?.nextAgenda?.id]);
+  }, [tripId, data?.nextAgenda?.id, user?.id]); // ✅ rerun saat user berubah
 
   const handleViewLocation = () => {
     const loc = data?.nextAgenda?.location;
@@ -539,7 +550,7 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Quick Access Features */}
+      {/* Fitur Eksklusif */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">
           Fitur Eksklusif
@@ -599,14 +610,6 @@ export default function OverviewPage() {
 
                   <div className="flex flex-col items-end gap-2">
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                      {/* badge pinned */}
-                      {/* {a.isPinned && (
-                        <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 border border-blue-200 text-xs font-medium text-blue-700">
-                          <Pin size={12} className="text-blue-600" />
-                          <span>Dipasang</span>
-                        </div>
-                      )} */}
-                      {/* badge penting */}
                       {String(a.priority).toUpperCase() === "IMPORTANT" && (
                         <div className="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 border border-red-200 text-xs font-medium text-red-700">
                           <AlertCircle size={12} className="text-red-600" />
