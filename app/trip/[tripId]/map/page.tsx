@@ -264,9 +264,6 @@ export default function MapJourneyPage() {
         <strong>#${index + 1} ${loc.name}</strong><br/>
         Hari ${loc.day} • ${loc.time}<br/>
         ${loc.locationText ? `<small>${loc.locationText}</small><br/>` : ""}
-        <small>Lat: ${loc.lat.toFixed(4)}, Lng: ${loc.lng.toFixed(
-        4
-      )}</small><br/>
         ${
           isVisited
             ? `<span style="color:#16a34a; font-weight:600;">✓ Sudah dikunjungi</span>`
