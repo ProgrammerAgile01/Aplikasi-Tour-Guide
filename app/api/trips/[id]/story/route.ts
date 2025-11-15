@@ -80,14 +80,14 @@ export async function GET(
       );
     }
 
-    // semua attendance peserta di trip ini
+    // ===== 1. semua attendance peserta di trip ini =====
     const attendances = await prisma.attendance.findMany({
       where: { tripId, participantId },
       include: { session: true },
       orderBy: { checkedAt: "asc" },
     });
 
-    // semua foto gallery APPROVED peserta ini
+    // ===== 2. semua foto gallery APPROVED peserta ini =====
     const galleries = await prisma.gallery.findMany({
       where: { tripId, participantId, status: "APPROVED" },
       orderBy: { createdAt: "asc" },
@@ -124,8 +124,18 @@ export async function GET(
     const uniqueSessionIds = new Set(attendances.map((a) => a.sessionId));
     const totalLocations = uniqueSessionIds.size;
     const totalPhotos = galleries.length;
-    const badgesEarned =
-      totalLocations === 0 ? 0 : Math.min(5, Math.ceil(totalLocations / 3));
+
+    // ===== 3. HITUNG BADGE DARI TABEL ParticipantBadge =====
+    const participantBadges = await prisma.participantBadge.findMany({
+      where: {
+        tripId,
+        participantId,
+      },
+      // kalau nanti butuh tampilkan detail badge di UI, bisa include:
+      // include: { badge: true },
+    });
+
+    const badgesEarned = participantBadges.length;
 
     const tripSummary = {
       title: trip.name,
@@ -133,7 +143,7 @@ export async function GET(
       participant: payload.user?.name ?? "Peserta",
       totalLocations,
       totalPhotos,
-      badgesEarned,
+      badgesEarned, // ✅ sekarang real dari badge, bukan rumus
     };
 
     return NextResponse.json({
@@ -141,6 +151,14 @@ export async function GET(
       data: {
         tripSummary,
         moments,
+        // kalau mau, bisa kirim daftar badge juga:
+        // badges: participantBadges.map(pb => ({
+        //   id: pb.id,
+        //   code: pb.badge.code,
+        //   name: pb.badge.name,
+        //   icon: pb.badge.icon,
+        //   unlockedAt: pb.unlockedAt,
+        // })),
       },
     });
   } catch (err: any) {
