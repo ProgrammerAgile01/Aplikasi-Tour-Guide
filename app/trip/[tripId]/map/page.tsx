@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { MapPin, Navigation, Anchor, Compass, Loader2 } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  Anchor,
+  Compass,
+  Loader2,
+  MapPinned,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,21 +76,6 @@ export default function MapJourneyPage() {
   const userAccuracyRef = useRef<L.Circle | null>(null); // lingkaran akurasi
   const userRouteLayerRef = useRef<L.LayerGroup | null>(null); // layer khusus rute user → target
   const userRouteRef = useRef<L.Polyline | null>(null); // polyline rute user → target
-
-  const getIconForType = (type: string) => {
-    switch (type) {
-      case "airport":
-        return "✈️";
-      case "island":
-        return "🏝️";
-      case "beach":
-        return "🏖️";
-      case "port":
-        return "⚓";
-      default:
-        return "📍";
-    }
-  };
 
   const openGoogleMaps = (lat: number, lng: number) => {
     window.open(
@@ -555,7 +547,7 @@ export default function MapJourneyPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground flex items-center gap-2">
-              <Anchor className="w-5 h-5 text-primary" />
+              <MapPinned className="w-5 h-5 text-primary" />
               Daftar Lokasi Perjalanan
             </h2>
             <Badge variant="secondary">{totalLocations} Titik</Badge>
@@ -591,14 +583,13 @@ export default function MapJourneyPage() {
                 <div className="p-4 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3 flex-1">
-                      <div className="text-2xl">
-                        {getIconForType(location.type)}
+                      <div className="w-9 h-9 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                        <span className="font-semibold text-blue-700">
+                          {index + 1}
+                        </span>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            #{index + 1}
-                          </span>
                           <h3 className="font-semibold text-foreground">
                             {location.name}
                           </h3>

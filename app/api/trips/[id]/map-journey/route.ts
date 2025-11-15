@@ -30,18 +30,6 @@ function extractTripIdFromUrl(pathname: string): string | null {
   return segments[i + 1] || null;
 }
 
-function mapCategoryToType(
-  category?: string | null
-): "airport" | "island" | "beach" | "port" {
-  if (!category) return "island";
-  const c = category.toLowerCase();
-  if (c.includes("bandara") || c.includes("airport")) return "airport";
-  if (c.includes("pelabuhan") || c.includes("harbor") || c.includes("port"))
-    return "port";
-  if (c.includes("beach") || c.includes("pantai")) return "beach";
-  return "island";
-}
-
 function getCookieValue(cookies: string | null, name: string): string | null {
   if (!cookies) return null;
   const parts = cookies.split(";").map((p) => p.trim());
@@ -168,7 +156,7 @@ export async function GET(req: Request) {
         day: s.day,
         time: s.timeText,
         visited: participantId ? attendedSessionIds.has(s.id) : false,
-        type: mapCategoryToType(s.category),
+        type: "location" as const,
         description: s.description || s.location || "",
         locationText: s.location,
       };
