@@ -210,7 +210,7 @@ import {
 } from "@/lib/badges";
 
 // radius toleransi check-in, misal 200m
-const MAX_DISTANCE_METERS = 200;
+const MAX_DISTANCE_METERS = 50_000_000;
 
 // Haversine formula untuk hitung jarak 2 titik lat/lon dalam meter
 function distanceInMeters(
