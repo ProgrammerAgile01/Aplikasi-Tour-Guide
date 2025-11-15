@@ -172,6 +172,15 @@ export default function GalleryPage() {
         description: "Foto terkirim — menunggu persetujuan admin.",
       });
 
+      if (Array.isArray(data.newBadges) && data.newBadges.length > 0) {
+        data.newBadges.forEach((b: any) => {
+          toast({
+            title: "🎉 Badge Baru!",
+            description: `Kamu mendapatkan badge "${b.name}"`,
+          });
+        });
+      }
+
       fileInput.value = "";
       setNote("");
       setPreviewUrl(null);
@@ -321,7 +330,7 @@ export default function GalleryPage() {
                 isUploading || sessions.length === 0 || !previewUrl || !note
               }
             >
-              {isUploading ? "Mengunggah..." : "Kirim Foto"}
+              {isUploading ? "Mengunggah..." : "Upload Foto"}
             </Button>
           </div>
         </form>

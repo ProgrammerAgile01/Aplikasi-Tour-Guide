@@ -1,8 +1,11 @@
-//app/api/checkins/qr/confirm/route.ts
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { parseCookies, verifyToken } from "@/lib/auth";
+import {
+  checkBadgesAfterCheckin,
+  checkBadgesAfterAttendanceSummary,
+} from "@/lib/badges";
 
 const JWT = process.env.JWT_SECRET || "dev-secret";
 
@@ -94,9 +97,43 @@ export async function POST(req: Request) {
       },
     });
 
+    // EK BADGE BARU
+    const [checkinBadges, completeBadges] = await Promise.all([
+      // badge tipe CHECKIN_SESSION untuk sesi ini
+      checkBadgesAfterCheckin({
+        tripId,
+        sessionId,
+        participantId: participant.id,
+      }),
+      // badge tipe COMPLETE_ALL_SESSIONS
+      checkBadgesAfterAttendanceSummary({
+        tripId,
+        participantId: participant.id,
+      }),
+    ]);
+
+    // gabungkan & hilangkan duplikat berdasarkan id
+    const allBadges = [...checkinBadges, ...completeBadges];
+    const seen = new Set<string>();
+    const uniqueBadges = allBadges.filter((b) => {
+      if (seen.has(b.id)) return false;
+      seen.add(b.id);
+      return true;
+    });
+
     return NextResponse.json({
       ok: true,
-      data: { attendanceId: att.id, checkedAt: att.checkedAt },
+      data: {
+        attendanceId: att.id,
+        checkedAt: att.checkedAt,
+      },
+      // dikirim ke frontend utk toast
+      newBadges: uniqueBadges.map((b) => ({
+        id: b.id,
+        name: b.name,
+        description: b.description,
+        icon: b.icon,
+      })),
     });
   } catch (e: any) {
     return NextResponse.json(

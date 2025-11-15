@@ -40,6 +40,8 @@ model Trip {
   whatsappMessages WhatsAppMessage[]
   attendances      Attendance[]
   galleries        Gallery[]
+  badgeDefinitions BadgeDefinition[]
+  participantBadges ParticipantBadge[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -82,6 +84,7 @@ model Schedule {
 
   attendances      Attendance[]
   galleries        Gallery[]
+  badgeDefinitions BadgeDefinition[]
 
   @@index([tripId])
   @@index([tripId, day])
@@ -133,6 +136,7 @@ model Participant {
   attendances      Attendance[]
   userTrips         UserTrip[]
   galleries         Gallery[]
+  participantBadges ParticipantBadge[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -282,4 +286,50 @@ model Gallery {
   @@index([participantId])
   @@index([sessionId])
   @@index([status])
+}
+
+enum BadgeConditionType {
+  CHECKIN_SESSION        // check-in di sesi tertentu
+  GALLERY_UPLOAD_SESSION // upload X foto di sesi tertentu
+  COMPLETE_ALL_SESSIONS  // hadir di semua sesi trip
+}
+
+model BadgeDefinition {
+  id          String              @id @default(cuid())
+  tripId      String
+  trip        Trip                @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  code        String              @db.VarChar(64) // mis. "LABUAN_BAJO_EXPLORER"
+  name        String
+  description String
+  icon        String              @db.VarChar(32) // "ship", "mountain", dst.
+  location    String?             @db.VarChar(191)
+
+  conditionType BadgeConditionType
+  targetValue   Int?              // mis. 3 untuk "upload 3 foto"
+  sessionId     String?
+  session       Schedule?         @relation(fields: [sessionId], references: [id])
+
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+
+  participantBadges ParticipantBadge[]
+
+  @@index([tripId])
+  @@index([code])
+}
+
+model ParticipantBadge {
+  id            String          @id @default(cuid())
+  tripId        String
+  participantId String
+  badgeId       String
+  unlockedAt    DateTime        @default(now())
+
+  trip        Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  participant Participant    @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  badge       BadgeDefinition @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([participantId, badgeId]) // 1 badge cuma sekali per peserta
+  @@index([tripId, participantId])
 }

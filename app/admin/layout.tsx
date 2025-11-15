@@ -20,6 +20,7 @@ import {
   Phone,
   Settings,
   Camera,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -46,6 +47,7 @@ export default function AdminLayout({
       icon: CheckSquare,
     },
     { name: "Pengumuman", path: "/admin/announcements", icon: Megaphone },
+    { name: "Badges", path: "/admin/badges", icon: Award },
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
     { name: "Pengguna", path: "/admin/users", icon: CircleUser },
     { name: "Rating", path: "/admin/feedback", icon: Star },

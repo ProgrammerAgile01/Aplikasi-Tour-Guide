@@ -194,6 +194,15 @@ export default function ScanQRPage() {
                 "Kehadiran Anda telah dicatat di sistem melalui scan QR.",
             });
 
+            if (Array.isArray(j.newBadges) && j.newBadges.length > 0) {
+              j.newBadges.forEach((b: any) => {
+                toast({
+                  title: "🎉 Badge Baru!",
+                  description: `Kamu mendapatkan badge "${b.name}"`,
+                });
+              });
+            }
+
             // hentikan kamera setelah sukses
             try {
               await scanner.stop();

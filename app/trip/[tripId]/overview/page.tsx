@@ -107,7 +107,7 @@ export default function OverviewPage() {
     if (!tripId || !data?.nextAgenda?.id || !user?.id) return;
 
     const sessionId = data.nextAgenda.id;
-    const key = `checkin-${tripId}-${sessionId}-${user.id}`; // ✅ include user.id
+    const key = `checkin-${tripId}-${sessionId}-${user.id}`; // include user.id
 
     try {
       const storedStatus =
@@ -126,7 +126,7 @@ export default function OverviewPage() {
     } catch {
       setCheckInStatus({ checkedIn: false });
     }
-  }, [tripId, data?.nextAgenda?.id, user?.id]); // ✅ rerun saat user berubah
+  }, [tripId, data?.nextAgenda?.id, user?.id]); // rerun saat user berubah
 
   const handleViewLocation = () => {
     const lat = data?.nextAgenda?.locationLat;
@@ -379,7 +379,7 @@ export default function OverviewPage() {
       )}
 
       {/* Banner WhatsApp */}
-      <Card className="p-4 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+      {/* <Card className="p-4 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-primary/20 rounded-lg">
             <MessageCircle size={20} className="text-primary" />
@@ -400,7 +400,7 @@ export default function OverviewPage() {
             </Button>
           </div>
         </div>
-      </Card>
+      </Card> */}
     </div>
   );
 }
