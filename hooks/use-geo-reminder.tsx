@@ -117,7 +117,7 @@ export function useGeoReminder(nextAgenda: Agenda | null, enabled = true) {
       );
 
       // radius 1000m (1 km) dan belum pernah notif
-      if (distance <= 5000 && hasNotified !== nextAgenda.id) {
+      if (distance <= 1000 && hasNotified !== nextAgenda.id) {
         setHasNotified(nextAgenda.id);
 
         if (typeof window !== "undefined") {

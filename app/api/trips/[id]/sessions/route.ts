@@ -45,7 +45,13 @@ export async function GET(req: Request, { params }: { params: any }) {
     const items = await prisma.schedule.findMany({
       where: { tripId },
       orderBy: [{ day: "asc" }, { timeText: "asc" }],
-      select: { id: true, title: true },
+      select: {
+        id: true,
+        title: true,
+        day: true,
+        timeText: true,
+        location: true,
+      },
     });
 
     return NextResponse.json({ ok: true, items });

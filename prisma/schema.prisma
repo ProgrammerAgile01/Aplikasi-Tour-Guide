@@ -274,7 +274,7 @@ model Gallery {
   note          String?
   imageUrl      String   @db.VarChar(512)
 
-  status        GalleryStatus @default(PENDING)  // 👈 status: PENDING / APPROVED
+  status        GalleryStatus @default(PENDING)  // status: PENDING / APPROVED
 
   createdAt     DateTime @default(now())
 
