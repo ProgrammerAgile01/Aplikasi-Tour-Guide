@@ -55,28 +55,37 @@ export async function GET(req: Request) {
       );
     }
 
-    // Ambil data utama paralel
-    const [totalParticipants, schedules, attendances] = await Promise.all([
-      prisma.participant.count({ where: { tripId } }),
-      prisma.schedule.findMany({
-        where: { tripId },
-        select: {
-          id: true,
-          day: true,
-          dateText: true,
-          title: true,
-        },
-      }),
-      prisma.attendance.findMany({
-        where: { tripId },
-        select: {
-          id: true,
-          sessionId: true,
-          participantId: true,
-          checkedAt: true,
-        },
-      }),
-    ]);
+    // Ambil data utama paralel (tambah galleries)
+    const [totalParticipants, schedules, attendances, galleries] =
+      await Promise.all([
+        prisma.participant.count({ where: { tripId } }),
+        prisma.schedule.findMany({
+          where: { tripId },
+          select: {
+            id: true,
+            day: true,
+            dateText: true,
+            title: true,
+          },
+        }),
+        prisma.attendance.findMany({
+          where: { tripId },
+          select: {
+            id: true,
+            sessionId: true,
+            participantId: true,
+            checkedAt: true,
+          },
+        }),
+        prisma.gallery.findMany({
+          where: { tripId },
+          select: {
+            id: true,
+            sessionId: true,
+            status: true, // GalleryStatus: PENDING / APPROVED
+          },
+        }),
+      ]);
 
     const totalSchedules = schedules.length;
 
@@ -182,9 +191,53 @@ export async function GET(req: Request) {
     }));
 
     // ---- PHOTO / GALLERY ----
-    // untuk sekarang kosong dulu (akan diisi kemudian)
-    const photoStats: any[] = [];
-    const totalPhotoUploaded = 0;
+    // total foto terunggah di trip
+    const totalPhotoUploaded = galleries.length;
+
+    // bucket foto per hari (berdasarkan Schedule.day)
+    const photoDayBuckets = new Map<
+      number,
+      { dateText: string; uploaded: number; approved: number; pending: number }
+    >();
+
+    for (const g of galleries) {
+      const sched = g.sessionId ? scheduleMap.get(g.sessionId) : null;
+      if (!sched) continue; // kalau sessionId tidak valid, skip
+
+      const dayKey = sched.day;
+      let bucket = photoDayBuckets.get(dayKey);
+      if (!bucket) {
+        bucket = {
+          dateText: sched.dateText,
+          uploaded: 0,
+          approved: 0,
+          pending: 0,
+        };
+        photoDayBuckets.set(dayKey, bucket);
+      }
+
+      // setiap record = 1 foto
+      bucket.uploaded += 1;
+
+      // status dari enum GalleryStatus (PENDING / APPROVED)
+      if (g.status === "APPROVED") {
+        bucket.approved += 1;
+      } else {
+        // PENDING atau status lain di masa depan
+        bucket.pending += 1;
+      }
+    }
+
+    // ubah ke bentuk array yang cocok dengan UI:
+    // { day: "Hari 1 - 27 Nov", uploaded, approved, pending }
+    const photoStats = Array.from(photoDayBuckets.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([day, bucket]) => ({
+        day: `Hari ${day} - ${bucket.dateText}`,
+        uploaded: bucket.uploaded,
+        approved: bucket.approved,
+        pending: bucket.pending,
+      }));
 
     return NextResponse.json(
       {

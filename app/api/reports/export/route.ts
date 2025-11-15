@@ -29,6 +29,13 @@ type TopAgendaRow = {
   percentage: number;
 };
 
+type PhotoStatRow = {
+  day: string;
+  uploaded: number;
+  approved: number;
+  pending: number;
+};
+
 async function buildReportData(tripId: string) {
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
@@ -37,26 +44,35 @@ async function buildReportData(tripId: string) {
 
   if (!trip) throw new Error("Trip tidak ditemukan");
 
-  const [totalParticipants, schedules, attendances] = await Promise.all([
-    prisma.participant.count({ where: { tripId } }),
-    prisma.schedule.findMany({
-      where: { tripId },
-      select: {
-        id: true,
-        day: true,
-        dateText: true,
-        title: true,
-      },
-    }),
-    prisma.attendance.findMany({
-      where: { tripId },
-      select: {
-        id: true,
-        participantId: true,
-        sessionId: true,
-      },
-    }),
-  ]);
+  const [totalParticipants, schedules, attendances, galleries] =
+    await Promise.all([
+      prisma.participant.count({ where: { tripId } }),
+      prisma.schedule.findMany({
+        where: { tripId },
+        select: {
+          id: true,
+          day: true,
+          dateText: true,
+          title: true,
+        },
+      }),
+      prisma.attendance.findMany({
+        where: { tripId },
+        select: {
+          id: true,
+          participantId: true,
+          sessionId: true,
+        },
+      }),
+      prisma.gallery.findMany({
+        where: { tripId },
+        select: {
+          id: true,
+          sessionId: true,
+          status: true, // PENDING / APPROVED
+        },
+      }),
+    ]);
 
   const scheduleMap = new Map<
     string,
@@ -64,6 +80,7 @@ async function buildReportData(tripId: string) {
   >();
   for (const s of schedules) scheduleMap.set(s.id, s);
 
+  // ==== DAILY ATTENDANCE ====
   const dayBuckets = new Map<
     number,
     { dateText: string; participants: Set<string> }
@@ -114,6 +131,7 @@ async function buildReportData(tripId: string) {
         )
       : null;
 
+  // ==== TOP AGENDA ====
   const agendaRaw = schedules.map((s) => {
     const checkins = sessionCounts.get(s.id) ?? 0;
     return { id: s.id, title: s.title, checkins };
@@ -133,9 +151,46 @@ async function buildReportData(tripId: string) {
         : 0,
   }));
 
-  // galeri nanti → kosong dulu
-  const photoStats: any[] = [];
-  const totalPhotoUploaded = 0;
+  // ==== GALERI / FOTO ====
+  const totalPhotoUploaded = galleries.length;
+
+  const photoDayBuckets = new Map<
+    number,
+    { dateText: string; uploaded: number; approved: number; pending: number }
+  >();
+
+  for (const g of galleries) {
+    const sched = g.sessionId ? scheduleMap.get(g.sessionId) : null;
+    if (!sched) continue;
+
+    const dayKey = sched.day;
+    let bucket = photoDayBuckets.get(dayKey);
+    if (!bucket) {
+      bucket = {
+        dateText: sched.dateText,
+        uploaded: 0,
+        approved: 0,
+        pending: 0,
+      };
+      photoDayBuckets.set(dayKey, bucket);
+    }
+
+    bucket.uploaded += 1;
+    if (g.status === "APPROVED") {
+      bucket.approved += 1;
+    } else {
+      bucket.pending += 1;
+    }
+  }
+
+  const photoStats: PhotoStatRow[] = Array.from(photoDayBuckets.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([day, bucket]) => ({
+      day: `Hari ${day} - ${bucket.dateText}`,
+      uploaded: bucket.uploaded,
+      approved: bucket.approved,
+      pending: bucket.pending,
+    }));
 
   return {
     trip,
@@ -159,8 +214,10 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
     totalParticipants,
     totalSchedules,
     avgAttendancePercent,
+    totalPhotoUploaded,
     dailyAttendance,
     topAgenda,
+    photoStats,
   } = report;
 
   const nowText = new Date().toLocaleString("id-ID");
@@ -172,6 +229,7 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
     ["Ringkasan"],
     ["Total Peserta", totalParticipants],
     ["Total Agenda", totalSchedules],
+    ["Total Foto Terunggah", totalPhotoUploaded],
     [
       "Rata-rata Kehadiran",
       avgAttendancePercent !== null ? `${avgAttendancePercent}%` : "-",
@@ -192,6 +250,31 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
     ...topAgenda.map((a) => [a.title, a.checkins, `${a.percentage}%`]),
   ];
 
+  // Tambahan: Statistik Foto jika ada
+  if (photoStats.length > 0) {
+    const totalUploaded = photoStats.reduce((s, x) => s + x.uploaded, 0);
+    const totalApproved = photoStats.reduce((s, x) => s + x.approved, 0);
+    const totalPending = photoStats.reduce((s, x) => s + x.pending, 0);
+    const approvalRate =
+      totalUploaded > 0 ? Math.round((totalApproved / totalUploaded) * 100) : 0;
+
+    sheetData.push(
+      [],
+      ["Statistik Foto Peserta"],
+      ["Periode", "Total Upload", "Disetujui", "Menunggu", "Persentase Setuju"],
+      ...photoStats.map((p) => [
+        p.day,
+        p.uploaded,
+        p.approved,
+        p.pending,
+        p.uploaded > 0
+          ? `${Math.round((p.approved / p.uploaded) * 100)}%`
+          : "0%",
+      ]),
+      ["Total", totalUploaded, totalApproved, totalPending, `${approvalRate}%`]
+    );
+  }
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
   XLSX.utils.book_append_sheet(wb, ws, "Laporan");
@@ -205,8 +288,19 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
  * ========================= */
 
 function getLogoPath(): string | null {
-  const candidate = path.join(process.cwd(), "public", "logo-tourguide.jpeg");
-  return fs.existsSync(candidate) ? candidate : null;
+  // Sesuaikan dengan file logo yang kamu pakai (png/jpg)
+  const candidatePng = path.join(process.cwd(), "public", "logo-tourguide.png");
+  const candidateJpg = path.join(process.cwd(), "public", "logo-tourguide.jpg");
+  const candidateJpeg = path.join(
+    process.cwd(),
+    "public",
+    "logo-tourguide.jpeg"
+  );
+
+  if (fs.existsSync(candidatePng)) return candidatePng;
+  if (fs.existsSync(candidateJpg)) return candidateJpg;
+  if (fs.existsSync(candidateJpeg)) return candidateJpeg;
+  return null;
 }
 
 async function buildPdfBuffer(
@@ -217,8 +311,10 @@ async function buildPdfBuffer(
     totalParticipants,
     totalSchedules,
     avgAttendancePercent,
+    totalPhotoUploaded,
     dailyAttendance,
     topAgenda,
+    photoStats,
   } = report;
 
   const pdfDoc = await PDFDocument.create();
@@ -243,13 +339,24 @@ async function buildPdfBuffer(
   if (logoPath) {
     try {
       const imgBytes = await fs.promises.readFile(logoPath);
-      const logoImage = await pdfDoc.embedPng(imgBytes);
-      const logoDims = logoImage.scale(0.3);
+      let logoImage;
+      if (logoPath.endsWith(".png")) {
+        logoImage = await pdfDoc.embedPng(imgBytes);
+      } else {
+        logoImage = await pdfDoc.embedJpg(imgBytes);
+      }
+      // Maksimum tinggi logo agar tidak nabrak header
+      const maxLogoHeight = headerHeight - 20; // 20 px padding atas bawah
+      const scale = maxLogoHeight / logoImage.height;
+
+      const logoWidth = logoImage.width * scale;
+      const logoHeight = logoImage.height * scale;
+
       page.drawImage(logoImage, {
         x: 40,
-        y: height - headerHeight + (headerHeight - logoDims.height) / 2,
-        width: logoDims.width,
-        height: logoDims.height,
+        y: height - headerHeight + (headerHeight - logoHeight) / 2,
+        width: logoWidth,
+        height: logoHeight,
       });
     } catch (e) {
       console.warn("Gagal memuat logo:", e);
@@ -316,6 +423,7 @@ async function buildPdfBuffer(
 
   writeLabelValue("Total peserta", String(totalParticipants));
   writeLabelValue("Total agenda", String(totalSchedules));
+  writeLabelValue("Total foto terunggah", String(totalPhotoUploaded));
   writeLabelValue(
     "Rata-rata kehadiran",
     avgAttendancePercent !== null ? `${avgAttendancePercent}%` : "-"
@@ -352,7 +460,6 @@ async function buildPdfBuffer(
 
   dailyAttendance.forEach((d) => {
     if (cursorY < 80) {
-      // halaman baru kalau habis
       const newPage = pdfDoc.addPage();
       cursorY = newPage.getSize().height - 80;
     }
@@ -403,6 +510,82 @@ async function buildPdfBuffer(
     drawRow2(cursorY, [a.title, String(a.checkins), `${a.percentage}%`]);
     cursorY -= 14;
   });
+
+  // Statistik Foto (kalau ada)
+  if (photoStats.length > 0) {
+    cursorY -= 20;
+    const pageForPhoto = cursorY < 120 ? pdfDoc.addPage() : page; // kalau sisa sempit, pakai halaman baru
+    if (cursorY < 120) {
+      const size = pageForPhoto.getSize();
+      cursorY = size.height - 80;
+    }
+
+    pageForPhoto.drawText("Statistik Foto yang Diunggah Peserta", {
+      x: 40,
+      y: cursorY,
+      size: 14,
+      font: fontBold,
+      color: rgb(0.07, 0.09, 0.11),
+    });
+    cursorY -= 20;
+
+    const colX3 = [40, 260, 340, 420, 500];
+
+    const drawRow3 = (y: number, row: string[], header = false) => {
+      row.forEach((cell, i) => {
+        pageForPhoto.drawText(cell, {
+          x: colX3[i],
+          y,
+          size: 9,
+          font: header ? fontBold : fontRegular,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      });
+    };
+
+    drawRow3(
+      cursorY,
+      ["Periode", "Upload", "Disetujui", "Menunggu", "%"],
+      true
+    );
+    cursorY -= 14;
+
+    const totalUploaded = photoStats.reduce((s, x) => s + x.uploaded, 0);
+    const totalApproved = photoStats.reduce((s, x) => s + x.approved, 0);
+    const totalPending = photoStats.reduce((s, x) => s + x.pending, 0);
+    const approvalRate =
+      totalUploaded > 0 ? Math.round((totalApproved / totalUploaded) * 100) : 0;
+
+    photoStats.forEach((p) => {
+      if (cursorY < 80) {
+        const newPage = pdfDoc.addPage();
+        cursorY = newPage.getSize().height - 80;
+      }
+      const percent =
+        p.uploaded > 0
+          ? `${Math.round((p.approved / p.uploaded) * 100)}%`
+          : "0%";
+
+      drawRow3(cursorY, [
+        p.day,
+        String(p.uploaded),
+        String(p.approved),
+        String(p.pending),
+        percent,
+      ]);
+      cursorY -= 12;
+    });
+
+    // Total row
+    cursorY -= 10;
+    drawRow3(cursorY, [
+      "Total",
+      String(totalUploaded),
+      String(totalApproved),
+      String(totalPending),
+      `${approvalRate}%`,
+    ]);
+  }
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);

@@ -80,6 +80,7 @@ function pickDaysShape(raw: any): DaySchedule[] {
 async function getTripFromAny(tripId: string): Promise<Trip | null> {
   const id = encodeURIComponent(tripId);
   const tries = [
+    `/api/trips/${id}/overview`, // ✅ pakai overview yang sudah ada
     `/api/trips/${id}`,
     `/api/trips?id=${id}`,
     `/api/trip?id=${id}`,
@@ -90,10 +91,10 @@ async function getTripFromAny(tripId: string): Promise<Trip | null> {
       const t = pickTripShape(j);
       if (t) return t;
     } catch {
-      // try next
+      // coba next URL
     }
   }
-  return null; // biarin null, header tetap aman
+  return null;
 }
 
 async function getSchedulesFromAny(tripId: string): Promise<DaySchedule[]> {
@@ -210,8 +211,9 @@ export default function SchedulePage() {
   }
 
   // ===== Header labels yang AMAN =====
-  const tripNameLabel = trip?.name || "Trip";
-  const tripCodeLabel = String(tripId); // selalu ada karena dari URL
+
+  const tripNameLabel = trip?.name || String(tripId);
+  // selalu ada karena dari URL
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -220,9 +222,7 @@ export default function SchedulePage() {
         <h1 className="text-2xl font-bold text-foreground">
           Jadwal Perjalanan
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {tripNameLabel} • ({tripCodeLabel})
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{tripNameLabel}</p>
       </div>
 
       {/* Day pills */}
@@ -371,7 +371,7 @@ export default function SchedulePage() {
                           </div>
                         )}
 
-                        {mapHref && (
+                        {/* {mapHref && (
                           <div className="mt-1">
                             <a
                               href={mapHref}
@@ -383,7 +383,7 @@ export default function SchedulePage() {
                               Buka peta
                             </a>
                           </div>
-                        )}
+                        )} */}
                       </div>
 
                       <Button
