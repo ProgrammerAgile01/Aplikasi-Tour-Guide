@@ -330,13 +330,62 @@ export default function AdminFeedbackPage() {
             </CardContent>
           </Card>
 
-          {/* Table Feedback */}
+          {/* Daftar Feedback: mobile = cards, desktop = tabel */}
           <Card>
             <CardHeader>
               <CardTitle className="text-xl">Daftar Umpan Balik</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              {/* MOBILE: card list */}
+              <div className="md:hidden space-y-3">
+                {loadingFeedbacks ? (
+                  <p className="py-4 text-sm text-slate-500">
+                    Memuat umpan balik…
+                  </p>
+                ) : filteredFeedbacks.length === 0 ? (
+                  <p className="py-4 text-sm text-slate-500 text-center">
+                    Belum ada umpan balik untuk trip ini.
+                  </p>
+                ) : (
+                  filteredFeedbacks.map((fb) => (
+                    <div
+                      key={fb.id}
+                      className="border border-slate-200 rounded-lg p-4 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-slate-500">
+                            {formatDateTime(fb.createdAt)}
+                          </p>
+                          <p className="font-semibold text-slate-900">
+                            {fb.participant?.name ?? (
+                              <span className="text-slate-400">
+                                (Peserta tidak terhubung)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {renderStars(fb.rating)}
+                          <p className="text-xs text-slate-500 mt-1">
+                            {fb.rating}/5
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-600">
+                        {fb.notes || (
+                          <span className="text-slate-400">
+                            Tidak ada catatan
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* DESKTOP: table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200">

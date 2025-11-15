@@ -446,7 +446,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick Actions */}
-          <Card>
+          {/* <Card>
             <CardHeader>
               <CardTitle className="text-lg font-semibold text-slate-900">
                 Aksi Cepat
@@ -480,7 +480,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </>
       )}
     </div>

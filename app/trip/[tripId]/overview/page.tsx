@@ -56,7 +56,7 @@ export default function OverviewPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = params?.tripId as string;
 
-  const { user } = useAuth(); // ✅ ambil user
+  const { user } = useAuth();
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +107,7 @@ export default function OverviewPage() {
     if (!tripId || !data?.nextAgenda?.id || !user?.id) return;
 
     const sessionId = data.nextAgenda.id;
-    const key = `checkin-${tripId}-${sessionId}-${user.id}`; // include user.id
+    const key = `checkin-${tripId}-${sessionId}-${user.id}`;
 
     try {
       const storedStatus =
@@ -126,7 +126,7 @@ export default function OverviewPage() {
     } catch {
       setCheckInStatus({ checkedIn: false });
     }
-  }, [tripId, data?.nextAgenda?.id, user?.id]); // rerun saat user berubah
+  }, [tripId, data?.nextAgenda?.id, user?.id]);
 
   const handleViewLocation = () => {
     const lat = data?.nextAgenda?.locationLat;
@@ -143,7 +143,6 @@ export default function OverviewPage() {
     router.push(`/trip/${tripId}/wa/subscribe`);
   };
 
-  // fallback agar UI tetap ter-render rapi walau data null
   const title = data?.title ?? "—";
   const subtitle = data?.subtitle ?? "—";
   const summary = data?.todaysSummary;
@@ -200,34 +199,41 @@ export default function OverviewPage() {
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
+
+              {/* Tombol: mobile stack, desktop sejajar */}
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
                 <Button
                   onClick={handleViewLocation}
                   variant="outline"
-                  className="flex-1 gap-2 text-sm bg-transparent"
+                  className="w-full sm:flex-1 gap-2 text-sm bg-transparent"
                   disabled={!nextAgenda.locationLat || !nextAgenda.locationLon}
                 >
                   <MapPin size={16} />
                   Lihat Lokasi
                 </Button>
+
                 {checkInStatus.checkedIn ? (
                   <Button
                     disabled
-                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed justify-center"
                   >
                     <CheckCircle size={16} />
-                    Sudah Check-in
+                    <span className="whitespace-normal text-xs sm:text-sm">
+                      Sudah Check-in
+                    </span>
                   </Button>
                 ) : (
                   <Button
                     asChild
-                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm"
+                    className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm justify-center"
                   >
                     <Link
                       href={`/trip/${tripId}/session/${nextAgenda.id}/checkin`}
                     >
                       <CheckCircle size={16} />
-                      Konfirmasi Kehadiran
+                      <span className="whitespace-normal text-xs sm:text-sm">
+                        Konfirmasi Kehadiran
+                      </span>
                     </Link>
                   </Button>
                 )}
