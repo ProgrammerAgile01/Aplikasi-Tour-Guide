@@ -492,7 +492,7 @@ export default function AdminReportsPage() {
                   <div className="space-y-4">
                     {topAgenda.map((agenda, index) => (
                       <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
                               <span className="text-sm font-bold text-blue-600">
@@ -508,7 +508,7 @@ export default function AdminReportsPage() {
                               </p>
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0 ml-2">
+                          <div className="text-right shrink-0 ml-2">
                             <p className="font-semibold text-slate-900">
                               {agenda.percentage}%
                             </p>
@@ -665,9 +665,7 @@ export default function AdminReportsPage() {
                     Export Laporan Lengkap
                   </h3>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    Laporan Excel dan PDF sudah menggunakan layout yang rapi
-                    dengan judul trip dan logo (diambil dari{" "}
-                    <code>public/logo-tourguide.png</code>). Anda dapat
+                    Laporan Excel dan PDF sudah menggunakan layout yang rapi. Anda dapat
                     membagikan file ini ke klien atau internal tim sebagai
                     dokumentasi resmi perjalanan.
                   </p>

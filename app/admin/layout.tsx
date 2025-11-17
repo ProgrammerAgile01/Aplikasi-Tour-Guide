@@ -50,7 +50,7 @@ export default function AdminLayout({
     { name: "Badges", path: "/admin/badges", icon: Award },
     { name: "Laporan & Statistik", path: "/admin/reports", icon: BarChart3 },
     { name: "Pengguna", path: "/admin/users", icon: CircleUser },
-    { name: "Rating", path: "/admin/feedback", icon: Star },
+    { name: "Umpan Balik (Ulasan)", path: "/admin/feedback", icon: Star },
     { name: "Galeri", path: "/admin/gallery", icon: Camera },
     { name: "Panel WhatsApp", path: "/admin/whatsapp-panel", icon: Phone },
     { name: "Pengaturan", path: "/admin/settings", icon: Settings },
@@ -87,7 +87,7 @@ export default function AdminLayout({
           {/* Logo */}
           <div className="h-16 flex items-center px-6 border-b border-slate-200">
             <h1 className="font-bold text-lg text-slate-900">
-              Trip Komodo Admin
+              Panel Admin
             </h1>
           </div>
 

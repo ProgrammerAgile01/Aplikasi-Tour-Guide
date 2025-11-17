@@ -326,10 +326,10 @@ export default function AdminAnnouncementsPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header + Create */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Pengumuman</h1>
-          <p className="text-slate-600 mt-1">Kelola pengumuman untuk peserta</p>
+          <p className="text-slate-600 mt-1 mb-2">Kelola pengumuman untuk peserta</p>
         </div>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>

@@ -1,293 +1,3 @@
-// "use client"
-
-// import { useState } from "react"
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-// import { Button } from "@/components/ui/button"
-// import { Input } from "@/components/ui/input"
-// import { toast } from "@/hooks/use-toast"
-// import { Search, MapPin, Clock, QrCode, CheckCircle2, XCircle } from "lucide-react"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-// interface AttendanceRecord {
-//   id: string
-//   participantName: string
-//   sessionTitle: string
-//   location: string
-//   method: "geo" | "qr" | "admin"
-//   timestamp: string
-//   status: "present" | "absent"
-// }
-
-// export default function AdminAttendancePage() {
-//   const [searchQuery, setSearchQuery] = useState("")
-//   const [filterMethod, setFilterMethod] = useState<string>("all")
-//   const [filterLocation, setFilterLocation] = useState<string>("all")
-
-//   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
-//     {
-//       id: "1",
-//       participantName: "Budi Santoso",
-//       sessionTitle: "Explore Pulau Komodo",
-//       location: "Pulau Komodo",
-//       method: "geo",
-//       timestamp: "28 Nov 2025, 10:15",
-//       status: "present",
-//     },
-//     {
-//       id: "2",
-//       participantName: "Siti Rahayu",
-//       sessionTitle: "Pantai Pink",
-//       location: "Pantai Pink",
-//       method: "qr",
-//       timestamp: "28 Nov 2025, 08:30",
-//       status: "present",
-//     },
-//     {
-//       id: "3",
-//       participantName: "Ahmad Wijaya",
-//       sessionTitle: "Sunrise di Bukit Padar",
-//       location: "Bukit Padar",
-//       method: "geo",
-//       timestamp: "28 Nov 2025, 06:45",
-//       status: "present",
-//     },
-//     {
-//       id: "4",
-//       participantName: "Dewi Lestari",
-//       sessionTitle: "Penjemputan di Bandara",
-//       location: "Komodo Airport",
-//       method: "admin",
-//       timestamp: "27 Nov 2025, 13:20",
-//       status: "present",
-//     },
-//     {
-//       id: "5",
-//       participantName: "Rudi Hartono",
-//       sessionTitle: "Menuju Pelabuhan",
-//       location: "Pelabuhan Labuan Bajo",
-//       method: "geo",
-//       timestamp: "27 Nov 2025, 14:30",
-//       status: "present",
-//     },
-//   ])
-
-//   const locations = ["all", ...Array.from(new Set(attendanceRecords.map((r) => r.location)))]
-
-//   const filteredRecords = attendanceRecords.filter((record) => {
-//     const matchesSearch =
-//       record.participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-//       record.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-//       record.location.toLowerCase().includes(searchQuery.toLowerCase())
-
-//     const matchesMethod = filterMethod === "all" || record.method === filterMethod
-//     const matchesLocation = filterLocation === "all" || record.location === filterLocation
-
-//     return matchesSearch && matchesMethod && matchesLocation
-//   })
-
-//   const handleUpdateStatus = (id: string, newStatus: "present" | "absent") => {
-//     setAttendanceRecords(
-//       attendanceRecords.map((record) => (record.id === id ? { ...record, status: newStatus } : record)),
-//     )
-//     toast({
-//       title: "Status Diperbarui",
-//       description: `Status kehadiran berhasil diubah menjadi ${newStatus === "present" ? "Hadir" : "Tidak Hadir"}.`,
-//     })
-//   }
-
-//   const methodBadge = (method: string) => {
-//     const styles = {
-//       geo: "bg-blue-100 text-blue-700",
-//       qr: "bg-purple-100 text-purple-700",
-//       admin: "bg-slate-100 text-slate-700",
-//     }
-//     const icons = {
-//       geo: <MapPin size={12} />,
-//       qr: <QrCode size={12} />,
-//       admin: <CheckCircle2 size={12} />,
-//     }
-//     const labels = {
-//       geo: "GEO",
-//       qr: "QR",
-//       admin: "Admin",
-//     }
-
-//     return (
-//       <span
-//         className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full font-medium ${styles[method as keyof typeof styles]}`}
-//       >
-//         {icons[method as keyof typeof icons]}
-//         {labels[method as keyof typeof labels]}
-//       </span>
-//     )
-//   }
-
-//   const stats = {
-//     total: attendanceRecords.length,
-//     geo: attendanceRecords.filter((r) => r.method === "geo").length,
-//     qr: attendanceRecords.filter((r) => r.method === "qr").length,
-//     admin: attendanceRecords.filter((r) => r.method === "admin").length,
-//   }
-
-//   return (
-//     <div className="p-6 space-y-6">
-//       {/* Header */}
-//       <div>
-//         <h1 className="text-3xl font-bold text-slate-900">Absensi & Kehadiran</h1>
-//         <p className="text-slate-600 mt-1">Rekap kehadiran peserta per lokasi dan waktu</p>
-//       </div>
-
-//       {/* Stats */}
-//       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-//         <Card>
-//           <CardContent className="pt-6">
-//             <div className="text-center">
-//               <p className="text-3xl font-bold text-slate-900">{stats.total}</p>
-//               <p className="text-sm text-slate-600 mt-1">Total Check-in</p>
-//             </div>
-//           </CardContent>
-//         </Card>
-//         <Card>
-//           <CardContent className="pt-6">
-//             <div className="text-center">
-//               <p className="text-3xl font-bold text-blue-600">{stats.geo}</p>
-//               <p className="text-sm text-slate-600 mt-1">Via GEO</p>
-//             </div>
-//           </CardContent>
-//         </Card>
-//         <Card>
-//           <CardContent className="pt-6">
-//             <div className="text-center">
-//               <p className="text-3xl font-bold text-purple-600">{stats.qr}</p>
-//               <p className="text-sm text-slate-600 mt-1">Via QR</p>
-//             </div>
-//           </CardContent>
-//         </Card>
-//         <Card>
-//           <CardContent className="pt-6">
-//             <div className="text-center">
-//               <p className="text-3xl font-bold text-slate-600">{stats.admin}</p>
-//               <p className="text-sm text-slate-600 mt-1">Manual Admin</p>
-//             </div>
-//           </CardContent>
-//         </Card>
-//       </div>
-
-//       {/* Filters */}
-//       <Card>
-//         <CardContent className="pt-6">
-//           <div className="flex flex-col md:flex-row gap-4">
-//             <div className="flex-1 relative">
-//               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-//               <Input
-//                 placeholder="Cari peserta atau lokasi..."
-//                 value={searchQuery}
-//                 onChange={(e) => setSearchQuery(e.target.value)}
-//                 className="pl-10"
-//               />
-//             </div>
-//             <Select value={filterMethod} onValueChange={setFilterMethod}>
-//               <SelectTrigger className="w-full md:w-48">
-//                 <SelectValue placeholder="Filter Metode" />
-//               </SelectTrigger>
-//               <SelectContent>
-//                 <SelectItem value="all">Semua Metode</SelectItem>
-//                 <SelectItem value="geo">GEO Check</SelectItem>
-//                 <SelectItem value="qr">Scan QR</SelectItem>
-//                 <SelectItem value="admin">Admin Manual</SelectItem>
-//               </SelectContent>
-//             </Select>
-//             <Select value={filterLocation} onValueChange={setFilterLocation}>
-//               <SelectTrigger className="w-full md:w-48">
-//                 <SelectValue placeholder="Filter Lokasi" />
-//               </SelectTrigger>
-//               <SelectContent>
-//                 <SelectItem value="all">Semua Lokasi</SelectItem>
-//                 {locations
-//                   .filter((l) => l !== "all")
-//                   .map((location) => (
-//                     <SelectItem key={location} value={location}>
-//                       {location}
-//                     </SelectItem>
-//                   ))}
-//               </SelectContent>
-//             </Select>
-//           </div>
-//         </CardContent>
-//       </Card>
-
-//       {/* Attendance Table */}
-//       <Card>
-//         <CardHeader>
-//           <CardTitle>Rekap Kehadiran</CardTitle>
-//         </CardHeader>
-//         <CardContent>
-//           <div className="overflow-x-auto">
-//             <table className="w-full">
-//               <thead>
-//                 <tr className="border-b border-slate-200">
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Nama</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Sesi</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Lokasi</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Metode</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Waktu</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Status</th>
-//                   <th className="text-left py-3 px-4 font-semibold text-slate-700">Aksi</th>
-//                 </tr>
-//               </thead>
-//               <tbody>
-//                 {filteredRecords.map((record) => (
-//                   <tr key={record.id} className="border-b border-slate-100 hover:bg-slate-50">
-//                     <td className="py-3 px-4 font-medium text-slate-900">{record.participantName}</td>
-//                     <td className="py-3 px-4 text-slate-700">{record.sessionTitle}</td>
-//                     <td className="py-3 px-4">
-//                       <div className="flex items-center gap-2 text-slate-600">
-//                         <MapPin size={14} />
-//                         {record.location}
-//                       </div>
-//                     </td>
-//                     <td className="py-3 px-4">{methodBadge(record.method)}</td>
-//                     <td className="py-3 px-4">
-//                       <div className="flex items-center gap-2 text-sm text-slate-600">
-//                         <Clock size={14} />
-//                         {record.timestamp}
-//                       </div>
-//                     </td>
-//                     <td className="py-3 px-4">
-//                       {record.status === "present" ? (
-//                         <span className="flex items-center gap-1 text-green-600 font-medium">
-//                           <CheckCircle2 size={16} />
-//                           Hadir
-//                         </span>
-//                       ) : (
-//                         <span className="flex items-center gap-1 text-red-600 font-medium">
-//                           <XCircle size={16} />
-//                           Tidak Hadir
-//                         </span>
-//                       )}
-//                     </td>
-//                     <td className="py-3 px-4">
-//                       <Button
-//                         variant="outline"
-//                         size="sm"
-//                         onClick={() =>
-//                           handleUpdateStatus(record.id, record.status === "present" ? "absent" : "present")
-//                         }
-//                       >
-//                         Ubah Status
-//                       </Button>
-//                     </td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-//           </div>
-//         </CardContent>
-//       </Card>
-//     </div>
-//   )
-// }
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -302,6 +12,7 @@ import {
   QrCode,
   CheckCircle2,
   XCircle,
+  Users,
 } from "lucide-react";
 import {
   Select,
@@ -310,6 +21,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface AttendanceRecord {
   id: string;
@@ -332,6 +50,15 @@ interface SessionRow {
   title: string;
 }
 
+interface MissingParticipant {
+  id: string;
+  name: string;
+  whatsapp: string;
+  address: string;
+  lastCheckIn?: string | null;
+  totalCheckIns: number;
+}
+
 export default function AdminAttendancePage() {
   // ====== Trip & Session state for QR panel ======
   const [trips, setTrips] = useState<TripRow[]>([]);
@@ -348,6 +75,13 @@ export default function AdminAttendancePage() {
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
+  >([]);
+
+  // modal peserta belum presensi
+  const [missingOpen, setMissingOpen] = useState(false);
+  const [missingLoading, setMissingLoading] = useState(false);
+  const [missingParticipants, setMissingParticipants] = useState<
+    MissingParticipant[]
   >([]);
 
   /* ----------------------------------------------------------------
@@ -491,6 +225,97 @@ export default function AdminAttendancePage() {
     })();
   }, [selectedTripId, filterMethod, toast]);
 
+  const loadMissingParticipants = async () => {
+    if (!selectedTripId || !selectedSessionId) {
+      toast({
+        title: "Pilih Trip & Sesi",
+        description:
+          "Silakan pilih trip dan sesi terlebih dahulu sebelum melihat peserta yang belum presensi.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setMissingLoading(true);
+      const url = `/api/attendance/missing?tripId=${encodeURIComponent(
+        selectedTripId
+      )}&sessionId=${encodeURIComponent(selectedSessionId)}`;
+
+      const res = await fetch(url, { cache: "no-store" });
+      const j = await res.json();
+      if (!res.ok || !j?.ok)
+        throw new Error(j?.message || "Gagal memuat peserta");
+
+      setMissingParticipants(j.items || []);
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Gagal memuat peserta yang belum presensi",
+        variant: "destructive",
+      });
+    } finally {
+      setMissingLoading(false);
+    }
+  };
+
+  const handleAdminCheckin = async (participantId: string) => {
+    if (!selectedTripId || !selectedSessionId) {
+      toast({
+        title: "Pilih Trip & Sesi",
+        description: "Trip dan sesi harus dipilih dulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/checkins/admin/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tripId: selectedTripId,
+          sessionId: selectedSessionId,
+          participantId,
+        }),
+      });
+
+      const j = await res.json();
+      if (!res.ok || !j?.ok)
+        throw new Error(j?.message || "Gagal menyimpan absensi manual");
+
+      toast({
+        title: "Absensi Tercatat",
+        description: "Peserta berhasil ditandai hadir oleh admin.",
+      });
+
+      // hapus dari daftar "belum presensi"
+      setMissingParticipants((prev) =>
+        prev.filter((p) => p.id !== participantId)
+      );
+
+      // refresh tabel attendance utama (diam-diam)
+      try {
+        const url = `/api/attendance?tripId=${encodeURIComponent(
+          selectedTripId
+        )}&method=${encodeURIComponent(filterMethod)}`;
+        const res2 = await fetch(url, { cache: "no-store" });
+        const j2 = await res2.json();
+        if (res2.ok && j2?.ok) {
+          setAttendanceRecords(j2.items || []);
+        }
+      } catch {
+        // ignore
+      }
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Gagal absensi manual peserta",
+        variant: "destructive",
+      });
+    }
+  };
+
   const locations = useMemo(
     () => [
       "all",
@@ -627,6 +452,21 @@ export default function AdminAttendancePage() {
                   : "Pilih trip terlebih dahulu"}
               </p>
             )}
+          </div>
+
+          <div className="flex justify-center mt-3">
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={!selectedTripId || !selectedSessionId}
+              onClick={async () => {
+                setMissingOpen(true);
+                await loadMissingParticipants();
+              }}
+            >
+              <Users size={16} />
+              Lihat Peserta Belum Presensi
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -809,6 +649,88 @@ export default function AdminAttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal: Peserta belum presensi */}
+      <Dialog open={missingOpen} onOpenChange={setMissingOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Peserta yang Belum Presensi</DialogTitle>
+            <DialogDescription>
+              Daftar peserta trip yang belum melakukan presensi pada sesi yang
+              dipilih. Admin dapat menandai hadir secara manual jika diperlukan.
+            </DialogDescription>
+          </DialogHeader>
+
+          {(!selectedTripId || !selectedSessionId) && (
+            <p className="text-sm text-red-500">
+              Pilih trip dan sesi terlebih dahulu.
+            </p>
+          )}
+
+          {selectedTripId && selectedSessionId && (
+            <div className="mt-3 space-y-3">
+              {missingLoading ? (
+                <p className="text-sm text-slate-500">
+                  Memuat daftar peserta...
+                </p>
+              ) : missingParticipants.length === 0 ? (
+                <p className="text-sm text-green-600">
+                  Semua peserta sudah melakukan presensi untuk sesi ini. 🎉
+                </p>
+              ) : (
+                <div className="max-h-[360px] overflow-y-auto border rounded-md">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        <th className="text-left py-2 px-3 font-medium text-slate-700">
+                          Nama
+                        </th>
+                        <th className="text-left py-2 px-3 font-medium text-slate-700">
+                          WhatsApp
+                        </th>
+                        <th className="text-left py-2 px-3 font-medium text-slate-700">
+                          Terakhir Check-in
+                        </th>
+                        <th className="text-left py-2 px-3 font-medium text-slate-700">
+                          Aksi
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {missingParticipants.map((p) => (
+                        <tr
+                          key={p.id}
+                          className="border-t border-slate-100 hover:bg-slate-50"
+                        >
+                          <td className="py-2 px-3 font-medium text-slate-900">
+                            {p.name}
+                          </td>
+                          <td className="py-2 px-3 text-slate-700">
+                            {p.whatsapp}
+                          </td>
+                          <td className="py-2 px-3 text-slate-500 text-xs">
+                            {p.lastCheckIn || "-"}
+                          </td>
+                          <td className="py-2 px-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs"
+                              onClick={() => handleAdminCheckin(p.id)}
+                            >
+                              Tandai Hadir
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

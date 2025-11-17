@@ -123,6 +123,18 @@ function parseLatLonFromOsmUrl(url?: string | null): {
   return {};
 }
 
+function googleMapsUrl(lat?: number | null, lon?: number | null, q?: string) {
+  if (lat != null && lon != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  }
+  if (q) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      q
+    )}`;
+  }
+  return null;
+}
+
 /* ============================ API HELPERS ============================ */
 async function apiGetTrips(): Promise<Trip[]> {
   const url = new URL("/api/trips", window.location.origin);
@@ -734,7 +746,7 @@ export default function AdminSchedulePage() {
             Kelola jadwal perjalanan peserta
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap-reverse gap-2 justify-end">
           <Button
             onClick={handleSendToParticipants}
             variant="outline"
@@ -981,9 +993,7 @@ export default function AdminSchedulePage() {
               <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
                 <DialogContent className="max-w-3xl">
                   <DialogHeader>
-                    <DialogTitle>
-                      Pilih Titik Lokasi (OpenStreetMap)
-                    </DialogTitle>
+                    <DialogTitle>Pilih Titik Lokasi</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3">
                     <div className="h-[420px] w-full rounded-md overflow-hidden border">
@@ -1134,7 +1144,7 @@ export default function AdminSchedulePage() {
                             key={schedule.id}
                             className="p-4 border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
                           >
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start justify-between flex-wrap gap-4">
                               <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-3">
                                   <div className="flex items-center gap-2 text-blue-600">
@@ -1170,36 +1180,49 @@ export default function AdminSchedulePage() {
                                   {schedule.location}
                                 </div>
 
-                                {osmUrl && (
-                                  <Button
-                                    asChild
-                                    className="mt-2 w-full justify-center"
-                                  >
-                                    <a
-                                      href={osmUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      aria-label="Lihat lokasi di OpenStreetMap"
-                                      className="inline-flex items-center gap-2"
+                                {(() => {
+                                  const mapUrl = googleMapsUrl(
+                                    schedule.locationLat,
+                                    schedule.locationLon,
+                                    schedule.location
+                                  );
+
+                                  return mapUrl ? (
+                                    <Button
+                                      asChild
+                                      className="mt-2 w-full justify-center"
                                     >
-                                      <MapPin size={16} />
-                                      Lihat Lokasi di OpenStreetMap
-                                    </a>
-                                  </Button>
-                                )}
+                                      <a
+                                        href={mapUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-2"
+                                      >
+                                        <MapPin size={16} />
+                                        Buka di Google Maps
+                                      </a>
+                                    </Button>
+                                  ) : null;
+                                })()}
 
                                 {schedule.hints &&
                                   schedule.hints.length > 0 && (
+                                    <>
+                                    <p className="text-sm text-slate-600 font-medium m-0">Petunjuk:</p>
                                     <ul className="list-disc pl-5 text-sm text-slate-600">
                                       {schedule.hints.map((h, i) => (
                                         <li key={i}>{h}</li>
                                       ))}
                                     </ul>
+                                    </>
                                   )}
                                 {schedule.description && (
+                                  <>
+                                  <p className="text-sm text-slate-600 m-0 font-medium">Deskripsi:</p>
                                   <p className="text-sm text-slate-600">
                                     {schedule.description}
                                   </p>
+                                  </>
                                 )}
                               </div>
 
@@ -1225,6 +1248,7 @@ export default function AdminSchedulePage() {
                                       onClick={() =>
                                         setConfirmDeleteId(schedule.id)
                                       }
+                                      className="hover:bg-red-600"
                                     >
                                       <Trash2 size={16} />
                                     </Button>

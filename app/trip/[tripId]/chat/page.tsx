@@ -499,7 +499,12 @@ export default function ChatPage() {
                 : "Asisten cerdas perjalanan Anda"}
             </p>
           </div>
-          <div className="text-xs text-muted-foreground">Online</div>
+          <div className="flex items-center gap-2 bg-green-50 px-2 py-1 rounded-full border border-green-200">
+            <div className="w-2 h-2 bg-green-500 rounded-full" />
+            <span className="text-xs font-medium text-green-700">
+              Terhubung
+            </span>
+          </div>
         </div>
       </div>
 

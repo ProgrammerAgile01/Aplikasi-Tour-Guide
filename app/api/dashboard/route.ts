@@ -202,7 +202,7 @@ export async function GET(req: Request) {
     recentFeedbacks.forEach((f) => {
       activities.push({
         user: f.participant?.name ?? "Peserta",
-        action: `Memberikan rating ${f.rating} bintang`,
+        action: `Memberikan ulasan ${f.rating} bintang`,
         time: timeFormatter.format(f.createdAt),
         createdAt: f.createdAt,
       });

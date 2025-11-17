@@ -224,7 +224,7 @@ export default function AdminDashboard() {
             value={selectedTripId}
             onValueChange={(v) => setSelectedTripId(v)}
           >
-            <SelectTrigger id="trip-select-dashboard" className="w-full">
+            <SelectTrigger id="trip-select-dashboard" className="w-full bg-white">
               <SelectValue
                 placeholder={
                   loadingTrips

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, MapPin, AlertCircle, Plus } from "lucide-react";
+import { Clock, MapPin, AlertCircle, Plus, Loader2 } from "lucide-react";
 
 /* ============ Types ============ */
 type SessionItem = {
@@ -80,7 +80,7 @@ function pickDaysShape(raw: any): DaySchedule[] {
 async function getTripFromAny(tripId: string): Promise<Trip | null> {
   const id = encodeURIComponent(tripId);
   const tries = [
-    `/api/trips/${id}/overview`, // ✅ pakai overview yang sudah ada
+    `/api/trips/${id}/overview`, // pakai overview yang sudah ada
     `/api/trips/${id}`,
     `/api/trips?id=${id}`,
     `/api/trip?id=${id}`,
@@ -151,7 +151,7 @@ export default function SchedulePage() {
         ]);
 
         if (!cancelled) {
-          if (t && t.id) setTrip(t); // ✅ hanya set jika valid
+          if (t && t.id) setTrip(t); // hanya set jika valid
           setDays(d);
         }
       } catch (e: any) {
@@ -197,11 +197,15 @@ export default function SchedulePage() {
   // ===== UI states =====
   if (loading) {
     return (
-      <div className="w-full max-w-2xl mx-auto px-4 py-6">
-        <p className="text-sm text-muted-foreground">Memuat jadwal…</p>
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 size={36} className="animate-spin text-primary" />
+          <p className="text-sm">Memuat jadwal…</p>
+        </div>
       </div>
     );
   }
+
   if (err) {
     return (
       <div className="w-full max-w-2xl mx-auto px-4 py-6">

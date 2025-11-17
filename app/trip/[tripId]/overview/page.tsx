@@ -318,7 +318,7 @@ export default function OverviewPage() {
           <Button
             asChild
             variant="outline"
-            className="flex flex-col gap-2 h-auto py-4 bg-transparent"
+            className="flex flex-col gap-2 h-auto py-4 bg-white"
           >
             <Link href={`/trip/${tripId}/badges`}>
               <Award size={24} className="text-primary" />
@@ -328,7 +328,7 @@ export default function OverviewPage() {
           <Button
             asChild
             variant="outline"
-            className="flex flex-col gap-2 h-auto py-4 bg-transparent"
+            className="flex flex-col gap-2 h-auto py-4 bg-white"
           >
             <Link href={`/trip/${tripId}/story`}>
               <BookOpen size={24} className="text-primary" />
@@ -338,7 +338,7 @@ export default function OverviewPage() {
           <Button
             asChild
             variant="outline"
-            className="flex flex-col gap-2 h-auto py-4 bg-transparent"
+            className="flex flex-col gap-2 h-auto py-4 bg-white"
           >
             <Link href={`/trip/${tripId}/chat`}>
               <MessageSquare size={24} className="text-primary" />

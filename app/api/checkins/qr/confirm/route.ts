@@ -6,6 +6,7 @@ import {
   checkBadgesAfterCheckin,
   checkBadgesAfterAttendanceSummary,
 } from "@/lib/badges";
+import { updateTripStatusIfAllCompleted } from "@/lib/trip-progress";
 
 const JWT = process.env.JWT_SECRET || "dev-secret";
 
@@ -120,6 +121,8 @@ export async function POST(req: Request) {
       seen.add(b.id);
       return true;
     });
+
+    await updateTripStatusIfAllCompleted(tripId);
 
     return NextResponse.json({
       ok: true,

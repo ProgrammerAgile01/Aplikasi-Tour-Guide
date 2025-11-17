@@ -90,15 +90,14 @@ export default async function TripLayout({
   children: React.ReactNode;
   params: Promise<{ tripId: string }>;
 }) {
-  const { tripId } = await params; // ✅ WAJIB: unwrap params
+  const { tripId } = await params;
 
-  // Kirim data serializable ke client component
   const navItems = [
     { name: "Beranda", path: `/trip/${tripId}/overview`, icon: "home" },
     { name: "Jadwal", path: `/trip/${tripId}/schedule`, icon: "calendar" },
     { name: "Peta", path: `/trip/${tripId}/map`, icon: "map" },
     { name: "Galeri", path: `/trip/${tripId}/gallery`, icon: "gallery" },
-    { name: "Umpan Balik", path: `/trip/${tripId}/feedback`, icon: "star" },
+    { name: "Ulasan", path: `/trip/${tripId}/feedback`, icon: "star" },
   ] as const;
 
   return (

@@ -430,7 +430,7 @@ export default function AdminParticipantsPage() {
           <Card>
             <CardHeader>
               <div className="flex justify-between">
-                <CardTitle className="text-xl">Daftar Peserta</CardTitle>
+                <CardTitle className="text-lg md:text-xl">Daftar Peserta</CardTitle>
                 <Button
                   onClick={() => handleOpenDialog()}
                   className="gap-2 bg-blue-600 hover:bg-blue-700"

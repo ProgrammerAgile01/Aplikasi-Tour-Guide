@@ -14,7 +14,7 @@ export default function AdminSettingsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-2">
         {/* info trip setting */}
         <GlobalSettingsCard />
 

@@ -646,13 +646,13 @@ export default function AdminGalleryPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle className="text-xl">Daftar Galeri</CardTitle>
-                <Button
+                {/* <Button
                   onClick={() => handleOpenDialog()}
                   className="gap-2 bg-blue-600 hover:bg-blue-700"
                   disabled={loadingParticipants || loadingSessions}
                 >
                   <Plus size={16} /> Tambah Foto
-                </Button>
+                </Button> */}
               </div>
             </CardHeader>
             <CardContent>
@@ -697,7 +697,7 @@ export default function AdminGalleryPage() {
 
                         {/* content */}
                         <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
                               <p className="text-sm font-semibold text-slate-900">
                                 {item.participantName}
