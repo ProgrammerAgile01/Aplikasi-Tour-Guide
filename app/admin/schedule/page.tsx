@@ -1523,7 +1523,7 @@ export default function AdminSchedulePage() {
           <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
             <DialogContent className="max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Pilih Titik Lokasi (OpenStreetMap)</DialogTitle>
+                <DialogTitle>Pilih Titik Lokasi</DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
                 <div className="h-[420px] w-full rounded-md overflow-hidden border">
