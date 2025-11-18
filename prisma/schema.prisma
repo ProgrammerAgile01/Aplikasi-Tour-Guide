@@ -42,6 +42,7 @@ model Trip {
   galleries        Gallery[]
   badgeDefinitions BadgeDefinition[]
   participantBadges ParticipantBadge[]
+  whatsappTemplates WhatsAppTemplate[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -67,7 +68,7 @@ model Schedule {
   location        String    @db.VarChar(255)
   locationMapUrl  String?   @db.VarChar(512)
 
-  // ✅ NEW: koordinat hasil pick di peta (opsional)
+  // koordinat hasil pick di peta (opsional)
   // gunakan Decimal untuk akurasi 7 digit (≈1.1 cm)
   locationLat     Decimal?  @db.Decimal(10, 7)
   locationLon     Decimal?  @db.Decimal(10, 7)
@@ -332,4 +333,29 @@ model ParticipantBadge {
 
   @@unique([participantId, badgeId]) // 1 badge cuma sekali per peserta
   @@index([tripId, participantId])
+}
+
+enum WhatsAppTemplateType {
+  SCHEDULE                   // kirim jadwal lengkap
+  PARTICIPANT_REGISTERED_NEW // peserta didaftarkan (akun baru dibuat)
+  PARTICIPANT_REGISTERED_EXISTING // peserta ditambahkan ke trip (akun sudah ada)
+  ANNOUNCEMENT               // pengumuman trip
+}
+
+model WhatsAppTemplate {
+  id        String               @id @default(cuid())
+
+  tripId    String
+  trip      Trip                 @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  type      WhatsAppTemplateType
+  name      String               @db.VarChar(100) // label di UI
+  content   String               @db.Text         // isi template dengan {{placeholder}}
+
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([tripId, type])
+  @@index([tripId])
+  @@index([type])
 }

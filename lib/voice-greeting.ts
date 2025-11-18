@@ -23,7 +23,7 @@ export function playVoiceGreeting(userName: string, tripName: string) {
 
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.lang = "id-ID";
-  utterance.rate = 0.9;
+  utterance.rate = 1.1;
   utterance.pitch = 1.0;
   utterance.volume = 0.8;
 
