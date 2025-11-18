@@ -245,7 +245,7 @@ export default function AdminDashboard() {
                           : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {trip.status === "ongoing" ? "Berjalan" : "Selesai"}
+                      {trip.status === "ongoing" ? "Aktif" : "Selesai"}
                     </span>
                   </div>
                 </SelectItem>

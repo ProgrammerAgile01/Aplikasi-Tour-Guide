@@ -380,7 +380,7 @@ export default function TripsPage() {
             <div className="text-2xl font-bold text-green-600">
               {loading ? "…" : totalOngoing}
             </div>
-            <p className="text-sm text-slate-600 mt-1">Trip Berjalan</p>
+            <p className="text-sm text-slate-600 mt-1">Trip Aktif</p>
           </CardContent>
         </Card>
         <Card>
@@ -439,7 +439,7 @@ export default function TripsPage() {
                         }`}
                       >
                         {trip.status === "ongoing"
-                          ? "Sedang Berjalan"
+                          ? "Aktif"
                           : "Selesai"}
                       </span>
                     </div>
@@ -548,7 +548,7 @@ export default function TripsPage() {
                     }
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="ongoing">Sedang Berjalan</option>
+                    <option value="ongoing">Aktif</option>
                     <option value="completed">Selesai</option>
                   </select>
                 </div>

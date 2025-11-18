@@ -1071,7 +1071,7 @@ export default function AdminSchedulePage() {
               {trips.map((trip) => (
                 <option key={trip.id} value={trip.id}>
                   {trip.name} (
-                  {trip.status === "ongoing" ? "Sedang Berjalan" : "Selesai"})
+                  {trip.status === "ongoing" ? "Aktif" : "Selesai"})
                 </option>
               ))}
             </select>

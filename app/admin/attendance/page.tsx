@@ -384,7 +384,7 @@ export default function AdminAttendancePage() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {t.status === "ongoing" ? "Berjalan" : "Selesai"}
+                          {t.status === "ongoing" ? "Aktif" : "Selesai"}
                         </span>
                       </div>
                     </SelectItem>

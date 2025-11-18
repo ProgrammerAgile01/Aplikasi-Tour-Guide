@@ -419,7 +419,7 @@ export default function AdminAnnouncementsPage() {
               {trips.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name} (
-                  {t.status === "ongoing" ? "Sedang Berjalan" : "Selesai"})
+                  {t.status === "ongoing" ? "Aktif" : "Selesai"})
                 </option>
               ))}
             </select>
