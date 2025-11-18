@@ -21,6 +21,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useGeoReminder } from "@/hooks/use-geo-reminder";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-client";
+import { isNowWithinWindow } from "@/lib/checkin-window";
 
 type OverviewData = {
   id: string;
@@ -34,6 +35,8 @@ type OverviewData = {
     locationName?: string | null;
     locationLat?: number | string | null;
     locationLon?: number | string | null;
+    startAt?: string;
+    endAt?: string;
   };
   todaysSummary?: {
     sessions: number;
@@ -49,6 +52,50 @@ type OverviewData = {
     isPinned?: boolean;
   }[];
 };
+
+function getNextAgendaEta(startAt?: string) {
+  if (!startAt) return null;
+
+  const start = new Date(startAt);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const now = new Date();
+  const diffMs = start.getTime() - now.getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+
+  // sudah lewat cukup jauh
+  if (diffMinutes <= -5) {
+    return "Agenda ini sudah lewat";
+  }
+
+  // kira-kira sedang berlangsung (±5 menit dari start)
+  if (Math.abs(diffMinutes) <= 5) {
+    return "Sedang berlangsung sekarang";
+  }
+
+  const diffHoursTotal = Math.floor(diffMinutes / 60);
+  const remainingMinutes = diffMinutes % 60;
+  const diffDays = Math.floor(diffHoursTotal / 24);
+  const remainingHours = diffHoursTotal % 24;
+
+  const parts: string[] = [];
+
+  if (diffDays > 0) {
+    parts.push(`${diffDays} hari`);
+  }
+  if (remainingHours > 0) {
+    parts.push(`${remainingHours} jam`);
+  }
+
+  // kalau kurang dari 1 hari, baru tampilkan menit
+  if (diffDays === 0 && remainingMinutes > 0) {
+    parts.push(`${remainingMinutes} menit`);
+  }
+
+  if (!parts.length) return null;
+
+  return `Absen dibuka dalam ${parts.join(" ")}`;
+}
 
 export default function OverviewPage() {
   const { toast } = useToast();
@@ -98,6 +145,15 @@ export default function OverviewPage() {
   }, [tripId, toast]);
 
   const nextAgenda = data?.nextAgenda;
+  const summary = data?.todaysSummary;
+
+  const canCheckInNow = nextAgenda
+    ? isNowWithinWindow(nextAgenda.startAt, nextAgenda.endAt)
+    : false;
+
+  const nextAgendaEta = nextAgenda
+    ? getNextAgendaEta(nextAgenda.startAt)
+    : null;
 
   // pakai geo reminder saat data nextAgenda tersedia
   useGeoReminder(nextAgenda ?? null, true);
@@ -145,8 +201,31 @@ export default function OverviewPage() {
 
   const title = data?.title ?? "—";
   const subtitle = data?.subtitle ?? "—";
-  const summary = data?.todaysSummary;
   const announcements = data?.announcements ?? [];
+
+  const handleGoToCheckin = () => {
+    if (!tripId || !nextAgenda) return;
+
+    if (!canCheckInNow) {
+      toast({
+        title: "Belum waktunya absen",
+        description:
+          "Absen hanya bisa dilakukan pada jam sesi yang berlangsung.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    router.push(`/trip/${tripId}/session/${nextAgenda.id}/checkin`);
+  };
+
+  // === progress agenda trip (dari summary) ===
+  const totalAgendas = summary?.sessions ?? 0;
+  const completedAgendas = summary?.completed ?? 0;
+  const progressPercent =
+    totalAgendas > 0
+      ? Math.min(100, Math.round((completedAgendas / totalAgendas) * 100))
+      : 0;
 
   if (loading) {
     return (
@@ -175,6 +254,31 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* Progres Agenda Trip */}
+      {summary && (
+        <Card className="p-4 border border-border">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-foreground">
+              Progres Trip Anda
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {completedAgendas} dari {totalAgendas} agenda selesai
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          {totalAgendas > 0 && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {progressPercent}% perjalanan kamu sudah terselesaikan 🎉
+            </p>
+          )}
+        </Card>
+      )}
+
       {/* Agenda Berikutnya */}
       {nextAgenda && (
         <Card className="p-4 border border-border">
@@ -190,6 +294,9 @@ export default function OverviewPage() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Pukul {nextAgenda.time} • {nextAgenda.date}
                 </p>
+                {nextAgendaEta && (
+                  <p className="text-xs text-primary mt-1">{nextAgendaEta}</p>
+                )}
                 {checkInStatus.checkedIn && (
                   <div className="mt-2 inline-flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
                     <CheckCircle size={14} className="text-green-600" />
@@ -224,17 +331,16 @@ export default function OverviewPage() {
                   </Button>
                 ) : (
                   <Button
-                    asChild
-                    className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm justify-center"
+                    onClick={handleGoToCheckin}
+                    disabled={!canCheckInNow}
+                    className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-sm justify-center disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <Link
-                      href={`/trip/${tripId}/session/${nextAgenda.id}/checkin`}
-                    >
-                      <CheckCircle size={16} />
-                      <span className="whitespace-normal text-xs sm:text-sm">
-                        Konfirmasi Kehadiran
-                      </span>
-                    </Link>
+                    <CheckCircle size={16} />
+                    <span className="whitespace-normal text-xs sm:text-sm">
+                      {canCheckInNow
+                        ? "Konfirmasi Kehadiran"
+                        : "Absen belum dibuka"}
+                    </span>
                   </Button>
                 )}
               </div>
@@ -256,7 +362,7 @@ export default function OverviewPage() {
                   <Bell size={20} className="text-primary" />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Jumlah Sesi</p>
+                  <p className="text-xs text-muted-foreground">Jumlah Agenda</p>
                   <p className="text-lg font-bold text-foreground">
                     {summary.sessions}
                   </p>
@@ -383,30 +489,6 @@ export default function OverviewPage() {
           </div>
         </div>
       )}
-
-      {/* Banner WhatsApp */}
-      {/* <Card className="p-4 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-primary/20 rounded-lg">
-            <MessageCircle size={20} className="text-primary" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-foreground">
-              Aktifkan Pengingat WhatsApp
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Dapatkan notifikasi real-time untuk setiap agenda dan pengumuman
-              penting.
-            </p>
-            <Button
-              onClick={handleEnableWhatsApp}
-              className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground text-sm"
-            >
-              Aktifkan Sekarang
-            </Button>
-          </div>
-        </div>
-      </Card> */}
     </div>
   );
 }

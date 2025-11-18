@@ -1,11 +1,14 @@
+// app/api/trip/[tripId]/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { tripId: string } }
+  { params }: { params: Promise<{ tripId: string }> }
 ) {
-  const id = params?.tripId?.toString();
+  const { tripId } = await params;
+  const id = tripId?.toString();
+
   if (!id) {
     return NextResponse.json(
       { ok: false, message: "ID wajib diisi." },
@@ -15,7 +18,6 @@ export async function GET(
 
   const trip = await prisma.trip.findUnique({
     where: { id },
-    // pastikan SELECT name!
     select: { id: true, name: true, status: true },
   });
 

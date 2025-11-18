@@ -7,26 +7,37 @@ import { Button } from "@/components/ui/button";
 import { Clock, MapPin, AlertCircle, Plus, Loader2 } from "lucide-react";
 
 /* ============ Types ============ */
+
+type TimeStatus = "PAST" | "ONGOING" | "UPCOMING" | "UNKNOWN";
+
 type SessionItem = {
   id: string;
   time: string;
   title: string;
+  category?: string | null; // 👈 tambahin category di session
   location?: string | null;
   locationMapUrl?: string | null;
   lat?: number | null;
   lon?: number | null;
   isChanged?: boolean;
   isAdditional?: boolean;
+  startAt?: string;
+  endAt?: string;
+  attended?: boolean;
+  timeStatus: TimeStatus;
 };
+
 type DaySchedule = {
   day: number;
   date: string;
   dateValueISO?: string;
   sessions: SessionItem[];
 };
+
 type Trip = { id: string; name: string; status?: string };
 
 /* ============ Utils ============ */
+
 function mapUrlFromLatLon(lat?: number | null, lon?: number | null) {
   if (lat == null || lon == null) return null;
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
@@ -76,6 +87,31 @@ function pickDaysShape(raw: any): DaySchedule[] {
   return arr as DaySchedule[];
 }
 
+function getSessionBadge(session: SessionItem) {
+  if (session.attended) {
+    return {
+      label: "Sudah hadir",
+      variant: "success" as const,
+    };
+  }
+
+  if (session.timeStatus === "ONGOING") {
+    return {
+      label: "Berlangsung sekarang",
+      variant: "warning" as const,
+    };
+  }
+
+  if (session.timeStatus === "PAST") {
+    return {
+      label: "Terlewat",
+      variant: "destructive" as const,
+    };
+  }
+
+  return null;
+}
+
 // --- Fetch with fallbacks but with validation ---
 async function getTripFromAny(tripId: string): Promise<Trip | null> {
   const id = encodeURIComponent(tripId);
@@ -100,11 +136,11 @@ async function getTripFromAny(tripId: string): Promise<Trip | null> {
 async function getSchedulesFromAny(tripId: string): Promise<DaySchedule[]> {
   const id = encodeURIComponent(tripId);
   const tries = [
-    `/api/trip/${id}/schedules`, // versi dinamis (plural)
-    `/api/trip/schedules?tripId=${id}`, // versi query (plural)
-    `/api/trip/${id}/schedules`, // versi dinamis (singular)
-    `/api/trip/schedules?tripId=${id}`, // versi query (singular)
-    `/api/schedules?tripId=${id}`, // generic
+    `/api/trip/${id}/schedules`,
+    `/api/trip/schedules?tripId=${id}`,
+    `/api/trip/${id}/schedules`,
+    `/api/trip/schedules?tripId=${id}`,
+    `/api/schedules?tripId=${id}`,
   ];
   for (const u of tries) {
     try {
@@ -115,7 +151,7 @@ async function getSchedulesFromAny(tripId: string): Promise<DaySchedule[]> {
       // try next
     }
   }
-  return []; // tidak error, hanya kosong
+  return [];
 }
 
 /* ============ Page ============ */
@@ -151,7 +187,7 @@ export default function SchedulePage() {
         ]);
 
         if (!cancelled) {
-          if (t && t.id) setTrip(t); // hanya set jika valid
+          if (t && t.id) setTrip(t);
           setDays(d);
         }
       } catch (e: any) {
@@ -214,10 +250,15 @@ export default function SchedulePage() {
     );
   }
 
-  // ===== Header labels yang AMAN =====
-
   const tripNameLabel = trip?.name || String(tripId);
-  // selalu ada karena dari URL
+
+  // ==== Day header title dinamis dari kategori sesi pertama ====
+  const firstSession = currentDaySchedule?.sessions[0];
+  const dayTitle =
+    (firstSession?.category && firstSession.category.trim()) ||
+    (currentDaySchedule
+      ? `Hari ${currentDaySchedule.day}`
+      : "Agenda Perjalanan");
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6">
@@ -284,13 +325,7 @@ export default function SchedulePage() {
                 </span>
               </div>
               <div>
-                <p className="font-semibold text-foreground">
-                  {currentDaySchedule.day === 1
-                    ? "Kedatangan & Penjemputan"
-                    : currentDaySchedule.day === 2
-                    ? "Eksplorasi Komodo"
-                    : "Kepulangan"}
-                </p>
+                <p className="font-semibold text-foreground">{dayTitle}</p>
                 <p className="text-xs text-muted-foreground">
                   {currentDaySchedule.date}
                 </p>
@@ -300,7 +335,7 @@ export default function SchedulePage() {
 
           {/* Timeline */}
           <div className="space-y-3 pl-6 relative">
-            <div className="absolute left-2.5 top-0 bottom-0 w-0.5 bg-primary/20"></div>
+            <div className="absolute left-2.5 top-0 bottom-0 w-0.5 bg-primary/20" />
 
             {currentDaySchedule.sessions.map((session) => {
               const fallbackMap =
@@ -311,9 +346,11 @@ export default function SchedulePage() {
                   : null;
               const mapHref = session.locationMapUrl || fallbackMap || null;
 
+              const badge = getSessionBadge(session);
+
               return (
                 <div key={session.id} className="relative">
-                  <div className="absolute -left-6 top-2 w-5 h-5 bg-card border-2 border-primary rounded-full z-10"></div>
+                  <div className="absolute -left-6 top-2 w-5 h-5 bg-card border-2 border-primary rounded-full z-10" />
 
                   <Card
                     onClick={() => handleSessionClick(session.id)}
@@ -343,7 +380,24 @@ export default function SchedulePage() {
                             {session.time}
                           </span>
                         </div>
+
                         <div className="flex flex-wrap gap-1.5 justify-end">
+                          {/* Badge status hadir / waktu */}
+                          {badge && (
+                            <span
+                              className={`flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium border
+                              ${
+                                badge.variant === "success"
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : badge.variant === "warning"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-red-50 text-red-700 border-red-200"
+                              }`}
+                            >
+                              {badge.label}
+                            </span>
+                          )}
+
                           {session.isChanged && (
                             <span className="flex items-center gap-1 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
                               <AlertCircle size={12} /> Perubahan
@@ -374,20 +428,6 @@ export default function SchedulePage() {
                             <span className="truncate">{session.location}</span>
                           </div>
                         )}
-
-                        {/* {mapHref && (
-                          <div className="mt-1">
-                            <a
-                              href={mapHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs underline text-primary"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Buka peta
-                            </a>
-                          </div>
-                        )} */}
                       </div>
 
                       <Button

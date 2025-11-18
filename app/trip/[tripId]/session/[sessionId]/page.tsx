@@ -14,6 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
+import { isNowWithinWindow } from "@/lib/checkin-window";
 
 /* ============================
    Types sinkron dengan model
@@ -34,6 +35,8 @@ type ScheduleApi = {
   description?: string | null;
   isChanged?: boolean;
   isAdditional?: boolean;
+  startAt?: string;
+  endAt?: string;
 };
 
 function toNum(v: unknown): number | null {
@@ -78,7 +81,10 @@ async function getScheduleDetail(
   try {
     const j = await fetchJson(`/api/schedules/${sid}`);
     const data: ScheduleApi | undefined = j?.data ?? j;
-    if (data?.id) return data;
+    if (data?.id) {
+      // kalau API by-id suatu saat mengirim startAt/endAt, kita tinggal pakai
+      return data;
+    }
   } catch {
     // lanjut fallback
   }
@@ -109,6 +115,26 @@ async function getScheduleDetail(
     for (const d of days) {
       const found = d.sessions.find((s) => s.id === sessionId);
       if (found) {
+        // hitung startAt & endAt dari dateValueISO + time
+        let startAt: string | undefined;
+        let endAt: string | undefined;
+
+        if (d.dateValueISO) {
+          const base = new Date(d.dateValueISO);
+          if (!Number.isNaN(base.getTime())) {
+            const [hStr, mStr] = (found.time ?? "").split(":");
+            const h = Number(hStr ?? "0");
+            const m = Number(mStr ?? "0");
+
+            base.setHours(h, m, 0, 0);
+            const s = new Date(base);
+            const e = new Date(s.getTime() + 2 * 60 * 60 * 1000); // window 2 jam
+
+            startAt = s.toISOString();
+            endAt = e.toISOString();
+          }
+        }
+
         return {
           id: found.id,
           tripId,
@@ -125,6 +151,8 @@ async function getScheduleDetail(
           hints: Array.isArray(found.hints) ? found.hints : null,
           isChanged: !!found.isChanged,
           isAdditional: !!found.isAdditional,
+          startAt,
+          endAt,
         };
       }
     }
@@ -215,7 +243,7 @@ export default function SessionDetailPage() {
     };
   }, [tripId, sessionId]);
 
-  // 🔥 Ambil status attendance dari DATABASE
+  // Ambil status attendance dari DATABASE
   useEffect(() => {
     let cancelled = false;
 
@@ -263,6 +291,11 @@ export default function SessionDetailPage() {
   }, [tripId, sessionId]);
 
   const mapHref = useMemo(() => (data ? buildMapHref(data) : null), [data]);
+
+  const canCheckInNow = useMemo(() => {
+    if (!data) return true; // atau false kalau mau default dikunci
+    return isNowWithinWindow(data.startAt, data.endAt);
+  }, [data?.startAt, data?.endAt]);
 
   const handleViewLocation = () => {
     if (mapHref) window.open(mapHref, "_blank");
@@ -433,11 +466,15 @@ export default function SessionDetailPage() {
         )}
         <Button
           onClick={handleCheckIn}
-          disabled={!!checkInStatus}
-          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-base py-3 disabled:opacity-60"
+          disabled={!!checkInStatus || !canCheckInNow}
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground gap-2 text-base py-3 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Navigation2 size={18} />
-          {checkInStatus ? "Sudah Dikonfirmasi" : "Konfirmasi Kehadiran"}
+          {checkInStatus
+            ? "Sudah Dikonfirmasi"
+            : canCheckInNow
+            ? "Konfirmasi Kehadiran"
+            : "Absen belum dibuka"}
         </Button>
       </div>
 

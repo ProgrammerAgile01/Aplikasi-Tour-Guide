@@ -1,6 +1,16 @@
-// app/api/trip/[tripId]/schedules/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getSessionFromRequest } from "@/lib/auth";
+
+type SessionPayload = {
+  user?: { id: string; role: string };
+  trips?: Array<{
+    id: string;
+    name?: string;
+    roleOnTrip?: string;
+    participantId?: string | null;
+  }>;
+};
 
 function toNumberOrNull(v: any) {
   if (v === null || v === undefined) return null;
@@ -11,14 +21,12 @@ function toNumberOrNull(v: any) {
 function toHintsArray(v: unknown): string[] | null {
   if (v == null) return null;
 
-  // Kalau sudah array -> pastikan string[]
   if (Array.isArray(v)) {
     return v
       .map((x) => (typeof x === "string" ? x : (x as any)?.toString?.() ?? ""))
       .filter(Boolean);
   }
 
-  // Kalau string berisi JSON -> coba parse
   if (typeof v === "string") {
     try {
       const parsed = JSON.parse(v);
@@ -30,11 +38,10 @@ function toHintsArray(v: unknown): string[] | null {
           .filter(Boolean);
       }
     } catch {
-      // biarkan null kalau bukan JSON array
+      // ignore
     }
   }
 
-  // Kalau object JSON Prisma -> coba ambil nilai2 string di dalamnya
   if (typeof v === "object") {
     const anyObj = v as any;
     if (Array.isArray(anyObj)) {
@@ -47,17 +54,71 @@ function toHintsArray(v: unknown): string[] | null {
   return null;
 }
 
+// helper: build window start/end dari dateText + timeText
+function buildSessionWindow(dateText: string, timeText: string) {
+  const normalized =
+    dateText?.replace?.(/(\d{1,2}) (\w+) (\d{4})/, "$1 $2 $3") || dateText;
+
+  const parsed = Date.parse(normalized);
+  if (Number.isNaN(parsed)) {
+    return { start: null as Date | null, end: null as Date | null };
+  }
+
+  const base = new Date(parsed);
+  const [hStr, mStr] = (timeText ?? "").split(":");
+  const h = Number(hStr ?? "0");
+  const m = Number(mStr ?? "0");
+
+  base.setHours(h, m, 0, 0);
+
+  const start = new Date(base);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // 2 jam
+
+  return { start, end };
+}
+
 export async function GET(
-  _req: Request,
-  { params }: { params: { tripId: string } }
+  req: Request,
+  { params }: { params: Promise<{ tripId: string }> }
 ) {
   try {
-    const { tripId } = params;
+    const { tripId } = await params;
 
+    // ==== ambil participantId dari token (kalau ada) ====
+    let participantId: string | null = null;
+    try {
+      const payload = (await getSessionFromRequest(
+        req
+      )) as SessionPayload | null;
+      const trips = payload?.trips ?? [];
+      const meta = trips.find((t) => t.id === tripId);
+      if (meta?.participantId) {
+        participantId = meta.participantId;
+      }
+    } catch {
+      // kalau gagal baca token, jadwal tetap jalan tanpa info attendance
+    }
+
+    // ==== ambil jadwal ====
     const rows = await prisma.schedule.findMany({
       where: { tripId },
       orderBy: [{ day: "asc" }, { timeText: "asc" }],
     });
+
+    // ==== ambil attendance peserta (kalau ada participantId) ====
+    let attendedSet: Set<string> | null = null;
+    if (participantId) {
+      const attendances = await prisma.attendance.findMany({
+        where: {
+          tripId,
+          participantId,
+        },
+        select: { sessionId: true },
+      });
+      attendedSet = new Set(attendances.map((a) => a.sessionId));
+    }
+
+    type TimeStatus = "PAST" | "ONGOING" | "UPCOMING" | "UNKNOWN";
 
     type DayPayload = {
       day: number;
@@ -76,22 +137,28 @@ export async function GET(
         hints?: string[] | null;
         isChanged?: boolean;
         isAdditional?: boolean;
+        startAt?: string;
+        endAt?: string;
+        attended?: boolean;
+        timeStatus: TimeStatus;
       }>;
     };
 
+    const now = new Date();
     const mapByDay: Record<number, DayPayload> = {};
 
     for (const r of rows) {
       const d = r.day;
-      if (!mapByDay[d]) {
-        // parse dateText -> ISO (best effort)
-        let iso: string | undefined;
-        const parsed = Date.parse(
-          r.dateText?.replace?.(/(\d{1,2}) (\w+) (\d{4})/, "$1 $2 $3") ||
-            r.dateText
-        );
-        if (!Number.isNaN(parsed)) iso = new Date(parsed).toISOString();
 
+      // parse tanggal -> ISO per day
+      let iso: string | undefined;
+      const parsed = Date.parse(
+        r.dateText?.replace?.(/(\d{1,2}) (\w+) (\d{4})/, "$1 $2 $3") ||
+          r.dateText
+      );
+      if (!Number.isNaN(parsed)) iso = new Date(parsed).toISOString();
+
+      if (!mapByDay[d]) {
         mapByDay[d] = {
           day: d,
           date: r.dateText,
@@ -99,6 +166,18 @@ export async function GET(
           sessions: [],
         };
       }
+
+      // hitung window start/end
+      const { start, end } = buildSessionWindow(r.dateText, r.timeText);
+      let timeStatus: TimeStatus = "UNKNOWN";
+
+      if (start && end) {
+        if (now < start) timeStatus = "UPCOMING";
+        else if (now >= start && now <= end) timeStatus = "ONGOING";
+        else if (now > end) timeStatus = "PAST";
+      }
+
+      const attended = attendedSet != null ? attendedSet.has(r.id) : undefined;
 
       mapByDay[d].sessions.push({
         id: r.id,
@@ -109,10 +188,14 @@ export async function GET(
         locationMapUrl: r.locationMapUrl ?? null,
         lat: toNumberOrNull(r.locationLat),
         lon: toNumberOrNull(r.locationLon),
-        description: r.description ?? null, // ✅ KIRIM DESKRIPSI
-        hints: toHintsArray(r.hints), // ✅ KIRIM PETUNJUK (array string)
+        description: r.description ?? null,
+        hints: toHintsArray(r.hints),
         isChanged: r.isChanged ?? false,
         isAdditional: r.isAdditional ?? false,
+        startAt: start ? start.toISOString() : undefined,
+        endAt: end ? end.toISOString() : undefined,
+        attended,
+        timeStatus,
       });
     }
 
