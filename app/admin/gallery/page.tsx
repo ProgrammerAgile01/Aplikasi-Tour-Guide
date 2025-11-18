@@ -1,4 +1,3 @@
-// app/admin/gallery/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -143,6 +142,12 @@ export default function AdminGalleryPage() {
     participantName?: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [previewItem, setPreviewItem] = useState<{
+    imageUrl: string;
+    sessionTitle?: string;
+    participantName?: string;
+  } | null>(null);
 
   useEffect(() => {
     loadTrips();
@@ -676,18 +681,23 @@ export default function AdminGalleryPage() {
                         {/* thumbnail */}
                         <div className="w-24 h-20 flex-shrink-0">
                           {item.imageUrl ? (
-                            <a
-                              href={item.imageUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block w-full h-full"
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPreviewItem({
+                                  imageUrl: item.imageUrl,
+                                  sessionTitle: item.sessionTitle,
+                                  participantName: item.participantName,
+                                })
+                              }
+                              className="block w-full h-full focus:outline-none cursor-pointer"
                             >
                               <img
                                 src={item.imageUrl}
                                 alt={item.sessionTitle}
                                 className="w-full h-full object-cover rounded-lg border border-slate-200"
                               />
-                            </a>
+                            </button>
                           ) : (
                             <div className="w-full h-full border border-dashed border-slate-200 rounded-lg flex items-center justify-center text-slate-300">
                               <ImageIcon className="w-5 h-5" />
@@ -851,18 +861,23 @@ export default function AdminGalleryPage() {
                           </td>
                           <td className="py-3 px-4 align-top">
                             {item.imageUrl ? (
-                              <a
-                                href={item.imageUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-block"
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewItem({
+                                    imageUrl: item.imageUrl,
+                                    sessionTitle: item.sessionTitle,
+                                    participantName: item.participantName,
+                                  })
+                                }
+                                className="inline-block focus:outline-none cursor-pointer"
                               >
                                 <img
                                   src={item.imageUrl}
                                   alt={item.sessionTitle}
                                   className="h-16 w-24 rounded object-cover border border-slate-200"
                                 />
-                              </a>
+                              </button>
                             ) : (
                               <div className="h-16 w-24 border border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
                                 <ImageIcon className="w-4 h-4" />
@@ -1146,6 +1161,37 @@ export default function AdminGalleryPage() {
               Hapus
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Image dialog */}
+      <Dialog
+        open={!!previewItem}
+        onOpenChange={(open) => {
+          if (!open) setPreviewItem(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {previewItem?.sessionTitle || "Preview Foto Galeri"}
+            </DialogTitle>
+            <DialogDescription>
+              {previewItem?.participantName
+                ? `Foto dari ${previewItem.participantName}. Klik di luar dialog untuk menutup.`
+                : "Klik di luar dialog untuk menutup."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-2">
+            {previewItem && (
+              <img
+                src={previewItem.imageUrl}
+                alt={previewItem.sessionTitle || "Preview foto"}
+                className="w-full max-h-[70vh] object-contain rounded-lg border border-slate-200 bg-slate-50"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

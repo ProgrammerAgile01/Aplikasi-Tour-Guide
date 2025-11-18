@@ -16,6 +16,15 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 
+// import Dialog untuk preview
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+
 interface GalleryImage {
   id: string;
   src: string;
@@ -52,6 +61,9 @@ export default function GalleryPage() {
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // state preview untuk foto yang sudah di-approve (live feed)
+  const [previewImage, setPreviewImage] = useState<GalleryImage | null>(null);
+
   const formatRelativeTime = (iso: string) => {
     try {
       return formatDistanceToNow(new Date(iso), {
@@ -76,7 +88,6 @@ export default function GalleryPage() {
         const data = await res.json();
         if (!data.ok) throw new Error(data.message ?? "Gagal memuat jadwal");
 
-        // endpoint kamu return: { ok: true, items }
         setSessions(data.items as SessionOption[]);
       } catch (err: any) {
         console.error(err);
@@ -155,7 +166,7 @@ export default function GalleryPage() {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("note", note);
-      formData.append("sessionId", selectedSessionId); // 🔴 kirim ke backend
+      formData.append("sessionId", selectedSessionId);
 
       const res = await fetch(`/api/trips/${tripId}/gallery`, {
         method: "POST",
@@ -184,7 +195,6 @@ export default function GalleryPage() {
       fileInput.value = "";
       setNote("");
       setPreviewUrl(null);
-      // kalau mau, biarin selectedSessionId tetap (biasanya orang upload beberapa foto ke sesi yang sama)
     } catch (err: any) {
       console.error("Upload gallery error:", err);
       toast({
@@ -274,7 +284,7 @@ export default function GalleryPage() {
             }}
           />
 
-          {/* Preview Foto */}
+          {/* Preview Foto (saat upload) */}
           {previewUrl && (
             <div className="w-full mt-3">
               <p className="text-xs text-muted-foreground mb-1">
@@ -336,7 +346,7 @@ export default function GalleryPage() {
         </form>
       </Card>
 
-      {/* Gallery Grid (tetap sama seperti sebelumnya) */}
+      {/* Gallery Grid */}
       {isLoading ? (
         <Card className="p-8 border border-border text-center">
           <p className="text-muted-foreground text-sm">Memuat galeri...</p>
@@ -357,11 +367,18 @@ export default function GalleryPage() {
                 className="space-y-2 animate-in fade-in duration-500"
               >
                 <Card className="overflow-hidden aspect-square border border-border">
-                  <img
-                    src={image.src || "/placeholder.svg"}
-                    alt={image.caption}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform"
-                  />
+                  {/* 🔹 klik foto → buka modal preview */}
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage(image)}
+                    className="w-full h-full focus:outline-none"
+                  >
+                    <img
+                      src={image.src || "/placeholder.svg"}
+                      alt={image.caption}
+                      className="w-full h-full object-cover hover:scale-105 transition-transform"
+                    />
+                  </button>
                 </Card>
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground truncate">
@@ -391,6 +408,44 @@ export default function GalleryPage() {
           <p className="text-muted-foreground">Belum ada foto di galeri.</p>
         </Card>
       )}
+
+      {/* 🔹 Dialog Preview Foto Live Feed */}
+      <Dialog
+        open={!!previewImage}
+        onOpenChange={(open) => {
+          if (!open) setPreviewImage(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {previewImage?.caption || "Preview Foto Galeri"}
+            </DialogTitle>
+            <DialogDescription>
+              {previewImage ? (
+                <span className="text-xs">
+                  Diunggah oleh{" "}
+                  <span className="font-medium">{previewImage.uploadedBy}</span>
+                  {previewImage.location
+                    ? ` • ${previewImage.location}`
+                    : ""} • {formatRelativeTime(previewImage.uploadedAt)}
+                </span>
+              ) : (
+                "Klik di luar dialog untuk menutup."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-2">
+            {previewImage && (
+              <img
+                src={previewImage.src}
+                alt={previewImage.caption || "Preview foto"}
+                className="w-full max-h-[70vh] object-contain rounded-lg border border-slate-200 bg-slate-50"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
