@@ -255,6 +255,9 @@ model Setting {
   tripName    String?  @db.VarChar(191)
   description String?  @db.Text
 
+  geoReminderRadiusMeters   Int? @default(1000)
+  geoAttendanceRadiusMeters Int? @default(200)
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

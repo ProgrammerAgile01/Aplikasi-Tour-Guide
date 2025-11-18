@@ -114,7 +114,13 @@ export default function OverviewPage() {
     timestamp?: string;
   }>({ checkedIn: false });
 
-  // fetch real data
+  // NEW: global geo radius (diambil dari /api/admin/geo-radius)
+  const [geoRadius, setGeoRadius] = useState<{
+    reminder: number;
+    attendance: number;
+  } | null>(null);
+
+  // fetch overview data
   useEffect(() => {
     if (!tripId) return;
     (async () => {
@@ -144,6 +150,29 @@ export default function OverviewPage() {
     })();
   }, [tripId, toast]);
 
+  // NEW: fetch global radius (reminder + absensi)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/geo-radius", {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || "Gagal memuat pengaturan radius");
+        }
+
+        setGeoRadius({
+          reminder: json.data.geoReminderRadiusMeters,
+          attendance: json.data.geoAttendanceRadiusMeters,
+        });
+      } catch (err) {
+        console.error("[Overview] Gagal memuat pengaturan radius:", err);
+        // opsional: kalau mau, bisa tampilkan toast, tapi biasanya cukup silent aja
+      }
+    })();
+  }, []);
+
   const nextAgenda = data?.nextAgenda;
   const summary = data?.todaysSummary;
 
@@ -155,8 +184,11 @@ export default function OverviewPage() {
     ? getNextAgendaEta(nextAgenda.startAt)
     : null;
 
-  // pakai geo reminder saat data nextAgenda tersedia
-  useGeoReminder(nextAgenda ?? null, true);
+  // pakai geo reminder saat data nextAgenda tersedia,
+  // radius diambil dari setting global (fallback 1000m di dalam hook)
+  useGeoReminder(nextAgenda ?? null, true, {
+    radiusMeters: geoRadius?.reminder,
+  });
 
   // restore check-in status (localStorage) PER USER
   useEffect(() => {
@@ -296,6 +328,13 @@ export default function OverviewPage() {
                 </p>
                 {nextAgendaEta && (
                   <p className="text-xs text-primary mt-1">{nextAgendaEta}</p>
+                )}
+                {/* Info radius reminder (opsional) */}
+                {geoRadius?.reminder && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Pengingat jarak aktif kalau kamu sudah &lt;{" "}
+                    {geoRadius.reminder} m dari lokasi agenda.
+                  </p>
                 )}
                 {checkInStatus.checkedIn && (
                   <div className="mt-2 inline-flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">

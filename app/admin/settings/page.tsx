@@ -1,3 +1,4 @@
+import { GeoRadiusSettingsCard } from "@/components/settings/geo-radius-settings";
 import { GlobalSettingsCard } from "@/components/settings/trip-info-settings";
 import { WhatsAppTemplateSettingsCard } from "@/components/settings/whatsapp-template-settings";
 
@@ -20,7 +21,8 @@ export default function AdminSettingsPage() {
         {/* info trip setting */}
         <GlobalSettingsCard />
         
-        {/* Nanti kalau ada card lain tinggal tambahkan di sini */}
+        {/* Geo radius setting */}
+        <GeoRadiusSettingsCard />
       </div>
 
       <div className="grid grid-cols-1 gap-6">

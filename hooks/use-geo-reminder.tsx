@@ -67,12 +67,22 @@ function playGeoVoiceReminder(agenda: Agenda) {
   }, 500);
 }
 
-export function useGeoReminder(nextAgenda: Agenda | null, enabled = true) {
+export function useGeoReminder(
+  nextAgenda: Agenda | null,
+  enabled = true,
+  options?: { radiusMeters?: number }
+) {
   const [hasNotified, setHasNotified] = useState<string | null>(null);
   const [userPosition, setUserPosition] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
+
+  // fallback global default kalau options belum diisi
+  const reminderRadius =
+    typeof options?.radiusMeters === "number" && options.radiusMeters > 0
+      ? options.radiusMeters
+      : 1000; // 1 km default
 
   const calculateDistance = useCallback(
     (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -116,8 +126,7 @@ export function useGeoReminder(nextAgenda: Agenda | null, enabled = true) {
         agendaLng
       );
 
-      // radius 1000m (1 km) dan belum pernah notif
-      if (distance <= 1000 && hasNotified !== nextAgenda.id) {
+      if (distance <= reminderRadius  && hasNotified !== nextAgenda.id) {
         setHasNotified(nextAgenda.id);
 
         if (typeof window !== "undefined") {

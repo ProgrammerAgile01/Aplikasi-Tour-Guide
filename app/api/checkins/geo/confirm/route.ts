@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { parseCookies, verifyToken } from "@/lib/auth";
-
-// IMPORT HELPER BADGE (sama kayak di QR)
 import {
   checkBadgesAfterCheckin,
   checkBadgesAfterAttendanceSummary,
 } from "@/lib/badges";
 import { updateTripStatusIfAllCompleted } from "@/lib/trip-progress";
 
-// radius toleransi check-in, misal 200m
-const MAX_DISTANCE_METERS = 50_000_000;
+// default radius
+const DEFAULT_ATTENDANCE_RADIUS_METERS = 200;
 
 // Haversine formula untuk hitung jarak 2 titik lat/lon dalam meter
 function distanceInMeters(
@@ -70,6 +68,21 @@ export async function POST(req: Request) {
     }
 
     const userId = String(auth.user?.id);
+
+    // ambil setting global radius absensi GEO
+    const setting = await prisma.setting.findUnique({
+      where: { id: "GLOBAL_SETTING" },
+      select: {
+        geoAttendanceRadiusMeters: true,
+      },
+    });
+
+    // fallback kalau belum diisi / null / 0
+    const MAX_DISTANCE_METERS =
+      setting?.geoAttendanceRadiusMeters &&
+      setting.geoAttendanceRadiusMeters > 0
+        ? setting.geoAttendanceRadiusMeters
+        : DEFAULT_ATTENDANCE_RADIUS_METERS;
 
     // pastikan user terdaftar di trip
     const link = await prisma.userTrip.findFirst({ where: { userId, tripId } });
@@ -132,8 +145,8 @@ export async function POST(req: Request) {
           ok: false,
           message: `Lokasi Anda terlalu jauh dari titik check-in (≈${Math.round(
             distance
-          )} m). Dekati lokasi dan coba lagi.`,
-          data: { distance },
+          )} m). Batas jarak: ${MAX_DISTANCE_METERS} m. Dekati lokasi dan coba lagi.`,
+          data: { distance, maxDistance: MAX_DISTANCE_METERS },
         },
         { status: 400 }
       );
