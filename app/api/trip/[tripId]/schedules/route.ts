@@ -72,7 +72,7 @@ function buildSessionWindow(dateText: string, timeText: string) {
   base.setHours(h, m, 0, 0);
 
   const start = new Date(base);
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // 2 jam
+  const end = new Date(start.getTime() + 1 * 60 * 60 * 1000);
 
   return { start, end };
 }
