@@ -128,9 +128,7 @@ model Participant {
   trip          Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
 
-  loginEmail        String?   @db.VarChar(191)
-  initialPassword   String?   @db.VarChar(191) // simpan "raw" one-time password
-  initialPasswordAt DateTime? // kapan password awal dibuat
+  loginUsername String?   @db.VarChar(191)
 
   feedbacks         Feedback[]
   whatsappMessages WhatsAppMessage[]
@@ -145,7 +143,7 @@ model Participant {
 
 model User {
   id         String   @id @default(cuid())
-  email      String   @unique
+  username   String   @unique
   password   String
   name       String
   whatsapp   String   @unique

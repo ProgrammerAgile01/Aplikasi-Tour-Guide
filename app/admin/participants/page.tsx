@@ -79,7 +79,7 @@ export default function AdminParticipantsPage() {
   // credential modal (show plain password once)
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
   const [lastCreatedCredential, setLastCreatedCredential] = useState<{
-    email: string;
+    username: string;
     password?: string;
   } | null>(null);
 
@@ -238,7 +238,7 @@ export default function AdminParticipantsPage() {
 
         if (json.user?.plainPassword || json.participant?.initialPassword) {
           setLastCreatedCredential({
-            email: json.user?.email ?? json.participant?.loginEmail ?? "",
+            username: json.user?.username ?? json.participant?.loginUsername ?? "",
             password:
               json.user?.plainPassword ??
               json.participant?.initialPassword ??
@@ -688,19 +688,19 @@ export default function AdminParticipantsPage() {
               ke peserta (ditampilkan sekali saja).
             </p>
             <div className="mt-4 bg-slate-50 p-4 rounded">
-              <p className="text-xs text-slate-500">Email</p>
+              <p className="text-xs text-slate-500">Username</p>
               <div className="flex items-center gap-2">
                 <code className="font-mono text-sm">
-                  {lastCreatedCredential?.email}
+                  {lastCreatedCredential?.username}
                 </code>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     navigator.clipboard?.writeText(
-                      lastCreatedCredential?.email ?? ""
+                      lastCreatedCredential?.username ?? ""
                     );
-                    toast({ title: "Copied", description: "Email disalin" });
+                    toast({ title: "Copied", description: "Username disalin" });
                   }}
                 >
                   <Copy className="w-4 h-4" />
@@ -726,7 +726,7 @@ export default function AdminParticipantsPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Sebaiknya minta peserta mengganti password setelah login.
+              Sebaiknya minta peserta mengganti password setelah login
             </p>
           </div>
           <DialogFooter>

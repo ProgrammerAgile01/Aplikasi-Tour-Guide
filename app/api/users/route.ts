@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     if (q) {
       where.OR = [
         { name: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
+        { username: { contains: q, mode: "insensitive" } },
         { whatsapp: { contains: q, mode: "insensitive" } },
         { role: { contains: q, mode: "insensitive" } },
       ];
@@ -25,7 +25,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
-        email: true,
+        username: true,
         name: true,
         whatsapp: true,
         role: true,

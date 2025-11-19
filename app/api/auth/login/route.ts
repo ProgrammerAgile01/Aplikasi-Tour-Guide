@@ -15,10 +15,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Cari User berdasarkan email / whatsapp
+    // Cari User berdasarkan username / whatsapp
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ email: identifier }, { whatsapp: identifier }],
+        OR: [{ username: identifier }, { whatsapp: identifier }],
       },
     });
 
@@ -50,10 +50,10 @@ export async function POST(req: Request) {
       include: { trip: true },
     });
 
-    // Ambil semua Participant yang match dengan user ini (berdasarkan email / whatsapp) untuk semua trip
+    // Ambil semua Participant yang match dengan user ini (berdasarkan username / whatsapp) untuk semua trip
     const participants = await prisma.participant.findMany({
       where: {
-        OR: [{ loginEmail: user.email }, { whatsapp: user.whatsapp }],
+        OR: [{ loginUsername: user.username }, { whatsapp: user.whatsapp }],
       },
       select: {
         id: true,
@@ -93,8 +93,8 @@ export async function POST(req: Request) {
     const userPayload = {
       id: user.id,
       name: user.name,
-      email: user.email,
-      whatsapp: user.whatsapp, // 🔥 penting buat fallback attendance
+      username: user.username,
+      whatsapp: user.whatsapp,
       role: user.role,
     };
 

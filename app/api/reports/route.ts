@@ -9,7 +9,7 @@ type SessionPayload = {
   user?: {
     id: string;
     role: string;
-    email?: string | null;
+    username?: string | null;
     name?: string | null;
   };
 };

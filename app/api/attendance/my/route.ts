@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     }
 
     const userId = String(auth.user?.id ?? "");
-    const userEmail = String(auth.user?.email ?? "");
+    const userUsername = String(auth.user?.username ?? "");
     const userWhatsapp = String(auth.user?.whatsapp ?? "");
 
     if (!userId) {
@@ -57,13 +57,13 @@ export async function GET(req: Request) {
     let participantId: string | null = userTrip.participantId ?? null;
 
     // 2. Kalau participantId belum keisi (data lama),
-    //     fallback cari Participant via email/whatsapp
+    //     fallback cari Participant via username/whatsapp
     if (!participantId) {
       const participant = await prisma.participant.findFirst({
         where: {
           tripId,
           OR: [
-            userEmail ? { loginEmail: userEmail } : undefined,
+            userUsername ? { loginUsername: userUsername } : undefined,
             userWhatsapp ? { whatsapp: userWhatsapp } : undefined,
           ].filter(Boolean) as any,
         },

@@ -17,7 +17,7 @@ type TokenPayload = {
   user: {
     id: string;
     name: string;
-    email: string;
+    username: string;
     role: string;
   };
   trips: TokenTrip[];

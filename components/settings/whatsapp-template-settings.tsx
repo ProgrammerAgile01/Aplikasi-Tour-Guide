@@ -70,7 +70,7 @@ const TYPE_PLACEHOLDERS: Record<TemplateType, string[]> = {
     "{{participant_name}}",
     "{{trip_name}}",
     "{{trip_location}}",
-    "{{login_email}}",
+    "{{login_username}}",
     "{{login_password}}",
     "{{login_url}}",
   ],
@@ -78,7 +78,7 @@ const TYPE_PLACEHOLDERS: Record<TemplateType, string[]> = {
     "{{participant_name}}",
     "{{trip_name}}",
     "{{trip_location}}",
-    "{{login_email}}",
+    "{{login_username}}",
     "{{login_url}}",
   ],
   ANNOUNCEMENT: [
@@ -112,7 +112,7 @@ function buildPreview(
       "📍 Lokasi: Komodo Airport\n\n" +
       "⏰ 10:30 — Check-in Kapal & Welcome Drink\n" +
       "📍 Lokasi: Pelabuhan Labuan Bajo\n",
-    login_email: "budi1234@trip.com",
+    login_username: "budi1234@trip.com",
     login_password: "rahasia123",
     login_url: "https://trip.agilestore.id/login",
     announcement_title: "Perubahan Jam Keberangkatan",

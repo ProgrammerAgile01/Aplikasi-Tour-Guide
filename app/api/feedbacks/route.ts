@@ -9,14 +9,14 @@ type SessionPayload = {
   user?: {
     id: string;
     role: string;
-    email?: string | null;
+    username?: string | null;
     name?: string | null;
   };
 };
 
 export async function GET(req: Request) {
   try {
-    // 1️⃣ cek session
+    // cek session
     const payload = (await getSessionFromRequest(req)) as SessionPayload | null;
     if (!payload) {
       return NextResponse.json(
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // 2️⃣ ambil tripId dari query
+    // ambil tripId dari query
     const url = new URL(req.url);
     const tripId = url.searchParams.get("tripId");
 
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // 3️⃣ ambil feedback + relasi participant
+    // ambil feedback + relasi participant
     const feedbacks = await prisma.feedback.findMany({
       where: { tripId },
       include: {
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    // 4️⃣ hitung statistik
+    // hitung statistik
     const total = feedbacks.length;
     const sumRating = feedbacks.reduce((sum, f) => sum + f.rating, 0);
     const avgRating = total > 0 ? sumRating / total : null;

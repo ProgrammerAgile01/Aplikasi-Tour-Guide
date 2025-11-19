@@ -9,7 +9,7 @@ type SessionPayload = {
   user?: {
     id: string;
     role: string;
-    email?: string | null;
+    username?: string | null;
     name?: string | null;
   };
   trips?: Array<{ id: string; name?: string; roleOnTrip?: string }>;
@@ -48,19 +48,19 @@ async function resolveTripId(
 
 /* -----------------------------
  *  Helper: cari participantId dari session
- *  mapping via loginEmail
+ *  mapping via loginUsername
  * ----------------------------- */
 async function resolveParticipantIdForSession(
   payload: SessionPayload,
   tripId: string
 ): Promise<string | null> {
-  const email = payload.user?.email ?? null;
-  if (!email) return null;
+  const username = payload.user?.username ?? null;
+  if (!username) return null;
 
   const participant = await prisma.participant.findFirst({
     where: {
       tripId,
-      loginEmail: email,
+      loginUsername: username,
     },
     select: { id: true },
   });
@@ -243,7 +243,7 @@ export async function GET(req: Request, ctx: { params: any }) {
             id: true,
             name: true,
             whatsapp: true,
-            loginEmail: true,
+            loginUsername: true,
           },
         },
       },

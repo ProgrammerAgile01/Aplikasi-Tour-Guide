@@ -8,14 +8,14 @@ async function main() {
   console.log("🌱 Seeding admin user...");
 
   // Buat user admin default
-  const adminEmail = "admin@trip.com";
+  const adminUsername = "admin";
   const password = await bcrypt.hash("admin123", 10);
 
   await prisma.user.upsert({
-    where: { email: adminEmail },
+    where: { username: adminUsername },
     update: {},
     create: {
-      email: adminEmail,
+      username: adminUsername,
       password,
       name: "Administrator",
       whatsapp: "0000000000",
@@ -24,7 +24,7 @@ async function main() {
     },
   });
 
-  console.log("✅ Admin user created:", adminEmail);
+  console.log("✅ Admin user created:", adminUsername);
 }
 
 main()

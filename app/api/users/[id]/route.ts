@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: any }) {
       where: { id },
       select: {
         id: true,
-        email: true,
+        username: true,
         name: true,
         whatsapp: true,
         role: true,
@@ -85,7 +85,7 @@ export async function PUT(req: Request, { params }: { params: any }) {
       ok: true,
       item: {
         id: updated.id,
-        email: updated.email,
+        username: updated.username,
         name: updated.name,
         whatsapp: updated.whatsapp,
         role: updated.role,

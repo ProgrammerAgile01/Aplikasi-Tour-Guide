@@ -1,4 +1,3 @@
-// lib/auth-client.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -8,7 +7,7 @@ type UserRole = string; // fleksibel (ADMIN, PESERTA, dll)
 
 interface User {
   id?: string;
-  email?: string;
+  username?: string;
   name: string;
   role: UserRole;
 }
