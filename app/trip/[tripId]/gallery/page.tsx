@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,6 +32,8 @@ interface GalleryImage {
   uploadedBy: string;
   uploadedAt: string; // ISO string
   location: string;
+  status?: "PENDING" | "APPROVED";
+  isMine?: boolean;
 }
 
 interface SessionOption {
@@ -40,6 +42,12 @@ interface SessionOption {
   day?: number;
   timeText?: string;
   location?: string | null;
+}
+
+// Response ringkas dari API attendance summary
+interface MyAttendanceSummary {
+  lastSessionId: string | null;
+  attendedSessionIds: string[];
 }
 
 export default function GalleryPage() {
@@ -59,6 +67,10 @@ export default function GalleryPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
 
+  // attendance summary dari server
+  const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+  const [attendedSessionIds, setAttendedSessionIds] = useState<string[]>([]);
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // state preview untuk foto yang sudah di-approve (live feed)
@@ -74,6 +86,11 @@ export default function GalleryPage() {
       return "";
     }
   };
+
+  const attendedSet = useMemo(
+    () => new Set(attendedSessionIds),
+    [attendedSessionIds]
+  );
 
   // Fetch sessions dari /api/trips/[id]/sessions
   useEffect(() => {
@@ -103,6 +120,52 @@ export default function GalleryPage() {
 
     fetchSessions();
   }, [tripId, toast]);
+
+  // Fetch ringkasan attendance saya (lastSession + list sesi yang sudah dihadiri)
+  useEffect(() => {
+    if (!tripId) return;
+
+    let cancelled = false;
+
+    const fetchAttendanceSummary = async () => {
+      try {
+        const res = await fetch(`/api/trips/${tripId}/my-attendance-summary`, {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!data.ok) return;
+
+        const summary = data.data as MyAttendanceSummary;
+        setLastSessionId(summary.lastSessionId ?? null);
+        setAttendedSessionIds(summary.attendedSessionIds ?? []);
+      } catch (err) {
+        console.error("Gagal fetch attendance summary:", err);
+      }
+    };
+
+    fetchAttendanceSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  // Auto-select dropdown ke sesi absen terakhir
+  useEffect(() => {
+    if (
+      !selectedSessionId && // hanya kalau belum ada pilihan
+      lastSessionId &&
+      sessions.length > 0
+    ) {
+      const exists = sessions.some((s) => s.id === lastSessionId);
+      if (exists) {
+        setSelectedSessionId(lastSessionId);
+      }
+    }
+  }, [sessions, lastSessionId, selectedSessionId]);
 
   // Fetch gallery approved + polling
   useEffect(() => {
@@ -176,6 +239,12 @@ export default function GalleryPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         throw new Error(data?.message ?? "Gagal upload foto");
+      }
+
+      const newImage: GalleryImage | undefined = data.image || data.data;
+      if (newImage) {
+        // masukkan ke paling atas supaya langsung kelihatan
+        setImages((prev) => [newImage, ...prev]);
       }
 
       toast({
@@ -258,13 +327,32 @@ export default function GalleryPage() {
                 />
               </SelectTrigger>
               <SelectContent>
-                {sessions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.day && s.timeText
-                      ? `Day ${s.day} • ${s.timeText} • ${s.title}`
-                      : s.title}
-                  </SelectItem>
-                ))}
+                {sessions.map((s) => {
+                  const label = s.day && s.timeText ? `${s.title}` : s.title;
+
+                  const isAttended = attendedSet.has(s.id);
+                  const isLast = lastSessionId === s.id;
+
+                  return (
+                    <SelectItem key={s.id} value={s.id}>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm">{label}</span>
+                          {isAttended && (
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 whitespace-nowrap">
+                              {isLast ? "Absen terakhir" : "Sudah hadir"}
+                            </span>
+                          )}
+                        </div>
+                        {s.location && (
+                          <span className="text-[10px] text-muted-foreground line-clamp-1">
+                            {`Hari ${s.day} • ${s.timeText} • ${s.location}`}
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -367,7 +455,7 @@ export default function GalleryPage() {
                 className="space-y-2 animate-in fade-in duration-500"
               >
                 <Card className="overflow-hidden aspect-square border border-border">
-                  {/* 🔹 klik foto → buka modal preview */}
+                  {/* klik foto → buka modal preview */}
                   <button
                     type="button"
                     onClick={() => setPreviewImage(image)}
@@ -397,6 +485,13 @@ export default function GalleryPage() {
                     <Clock size={10} />
                     {formatRelativeTime(image.uploadedAt)}
                   </p>
+
+                  {image.status === "PENDING" && image.isMine && (
+                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Dalam peninjauan
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -409,7 +504,7 @@ export default function GalleryPage() {
         </Card>
       )}
 
-      {/* 🔹 Dialog Preview Foto Live Feed */}
+      {/* Dialog Preview Foto Live Feed */}
       <Dialog
         open={!!previewImage}
         onOpenChange={(open) => {

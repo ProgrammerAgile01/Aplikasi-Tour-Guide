@@ -8,6 +8,7 @@ import { checkBadgesAfterGalleryUpload } from "@/lib/badges";
 
 export const runtime = "nodejs";
 
+// helper untuk ambil id
 async function resolveId(req: Request, params: any) {
   try {
     let p = params;
@@ -17,10 +18,26 @@ async function resolveId(req: Request, params: any) {
   } catch {}
   const pathname = new URL(req.url).pathname;
   const parts = pathname.split("/").filter(Boolean);
-  return parts[parts.length - 2]; // .../trips/[id]/gallery
+  return parts[parts.length - 2];
 }
 
-// GET: gallery APPROVED (buat live feed)
+// Helper: ubah Prisma data → bentuk UI
+function toClient(g: any, currentParticipantId: string | null) {
+  return {
+    id: g.id,
+    src: g.imageUrl,
+    caption: g.note ?? "",
+    uploadedBy: g.participant?.name ?? "Peserta",
+    uploadedAt: g.createdAt.toISOString(),
+    location: g.session?.location ?? "",
+    status: g.status,
+    isMine: g.participantId === currentParticipantId,
+  };
+}
+
+// ========================================
+// GET → ambil APPROVED + PENDING milik user
+// ========================================
 export async function GET(req: Request, { params }: { params: any }) {
   try {
     const tripId = await resolveId(req, params);
@@ -31,39 +48,56 @@ export async function GET(req: Request, { params }: { params: any }) {
       );
     }
 
-    const galleries = await prisma.gallery.findMany({
-      where: {
-        tripId,
-        status: "APPROVED",
-      },
+    const payload = getSessionFromRequest(req) as any;
+
+    let currentParticipantId: string | null = null;
+
+    if (payload?.trips) {
+      const info = payload.trips.find((t: any) => t.id === tripId);
+      currentParticipantId = info?.participantId ?? null;
+    }
+
+    // Foto APPROVED => publik
+    const approved = await prisma.gallery.findMany({
+      where: { tripId, status: "APPROVED" },
       orderBy: { createdAt: "desc" },
-      include: {
-        participant: true,
-        session: true,
-      },
+      include: { participant: true, session: true },
     });
+
+    // Foto PENDING hanya milik user
+    let minePending: any[] = [];
+    if (currentParticipantId) {
+      minePending = await prisma.gallery.findMany({
+        where: {
+          tripId,
+          participantId: currentParticipantId,
+          status: "PENDING",
+        },
+        include: { participant: true, session: true },
+      });
+    }
+
+    // gabungkan & sort
+    const merged = [...approved, ...minePending].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
 
     return NextResponse.json({
       ok: true,
-      data: galleries.map((g) => ({
-        id: g.id,
-        src: g.imageUrl,
-        caption: g.note ?? "",
-        uploadedBy: g.participant?.name ?? "Peserta",
-        uploadedAt: g.createdAt.toISOString(),
-        location: g.session?.location ?? "",
-      })),
+      data: merged.map((g) => toClient(g, currentParticipantId)),
     });
   } catch (e: any) {
-    console.error("GET /api/trips/[id]/gallery error:", e);
+    console.error("GET /gallery error:", e);
     return NextResponse.json(
-      { ok: false, message: e?.message ?? "Internal Error" },
+      { ok: false, message: "Internal Error" },
       { status: 500 }
     );
   }
 }
 
-// POST: upload foto → status PENDING
+// ========================================
+// POST → upload foto (status PENDING)
+// ========================================
 export async function POST(req: Request, { params }: { params: any }) {
   try {
     const tripId = await resolveId(req, params);
@@ -82,9 +116,7 @@ export async function POST(req: Request, { params }: { params: any }) {
       );
     }
 
-    const tripInfo = Array.isArray(payload.trips)
-      ? payload.trips.find((t: any) => t.id === tripId)
-      : null;
+    const tripInfo = payload.trips?.find((t: any) => t.id === tripId);
     if (!tripInfo || !tripInfo.participantId) {
       return NextResponse.json(
         {
@@ -99,7 +131,7 @@ export async function POST(req: Request, { params }: { params: any }) {
 
     const formData = await req.formData();
     const file = formData.get("image") as File | null;
-    const note = (formData.get("note") as string | null) ?? "";
+    const note = (formData.get("note") as string) || "";
     const sessionId = formData.get("sessionId") as string | null;
 
     if (!file) {
@@ -108,18 +140,14 @@ export async function POST(req: Request, { params }: { params: any }) {
         { status: 400 }
       );
     }
-
-    if (!sessionId || sessionId.trim() === "") {
+    if (!sessionId) {
       return NextResponse.json(
-        {
-          ok: false,
-          message:
-            "Session belum dipilih. Silakan pilih jadwal untuk foto ini.",
-        },
+        { ok: false, message: "SessionId tidak valid." },
         { status: 400 }
       );
     }
 
+    // upload file
     const bytes = Buffer.from(await file.arrayBuffer());
     const uploadDir = path.join(process.cwd(), "public", "uploads", "gallery");
     await fs.mkdir(uploadDir, { recursive: true });
@@ -131,6 +159,7 @@ export async function POST(req: Request, { params }: { params: any }) {
 
     const imageUrl = `/uploads/gallery/${filename}`;
 
+    // simpan ke DB → status PENDING
     const gallery = await prisma.gallery.create({
       data: {
         tripId,
@@ -140,9 +169,13 @@ export async function POST(req: Request, { params }: { params: any }) {
         imageUrl,
         status: "PENDING",
       },
+      include: {
+        participant: true,
+        session: true,
+      },
     });
 
-    // 🔥 cek badge yang mungkin kebuka dari upload ini
+    // badges
     const newlyUnlocked = await checkBadgesAfterGalleryUpload({
       tripId,
       sessionId,
@@ -152,7 +185,7 @@ export async function POST(req: Request, { params }: { params: any }) {
     return NextResponse.json({
       ok: true,
       message: "Foto terkirim — menunggu persetujuan admin.",
-      data: gallery,
+      image: toClient(gallery, participantId), // 🔹 frontend langsung pakai
       newBadges: newlyUnlocked.map((b) => ({
         id: b.id,
         name: b.name,
@@ -161,7 +194,7 @@ export async function POST(req: Request, { params }: { params: any }) {
       })),
     });
   } catch (e: any) {
-    console.error("POST /api/trips/[id]/gallery error:", e);
+    console.error("POST /gallery error:", e);
     return NextResponse.json(
       { ok: false, message: e?.message ?? "Internal Error" },
       { status: 500 }
