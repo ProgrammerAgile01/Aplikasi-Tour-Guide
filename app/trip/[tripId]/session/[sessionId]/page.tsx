@@ -203,6 +203,10 @@ export default function SessionDetailPage() {
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatus | null>(
     null
   );
+  const [nextSession, setNextSession] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   // OPTIONAL: baca localStorage supaya UX cepat (akan dioverride DB)
   useEffect(() => {
@@ -290,6 +294,66 @@ export default function SessionDetailPage() {
     };
   }, [tripId, sessionId]);
 
+  // Cari agenda berikutnya di trip ini
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const tid = encodeURIComponent(tripId);
+        const j = await fetchJson(`/api/trip/${tid}/schedules`);
+
+        const days = (j?.data ?? []) as Array<{
+          day: number;
+          date: string;
+          dateValueISO?: string;
+          sessions: Array<{
+            id: string;
+            time: string;
+            title: string;
+          }>;
+        }>;
+
+        // flatten & sort semua sesi
+        const allSessions = days
+          .flatMap((d) =>
+            d.sessions.map((s) => ({
+              id: s.id,
+              title: s.title,
+              day: d.day,
+              time: s.time ?? "",
+              sortKey: `${String(d.day).padStart(3, "0")}-${s.time ?? ""}`,
+            }))
+          )
+          .sort((a, b) =>
+            a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0
+          );
+
+        const idx = allSessions.findIndex((s) => s.id === sessionId);
+        if (idx === -1 || idx === allSessions.length - 1) {
+          // tidak ada sesi berikutnya
+          if (!cancelled) setNextSession(null);
+          return;
+        }
+
+        const next = allSessions[idx + 1];
+        if (!cancelled) {
+          setNextSession({
+            id: next.id,
+            title: next.title,
+          });
+        }
+      } catch (e) {
+        console.error("Gagal cari agenda berikutnya", e);
+        if (!cancelled) setNextSession(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId, sessionId]);
+
   const mapHref = useMemo(() => (data ? buildMapHref(data) : null), [data]);
 
   const canCheckInNow = useMemo(() => {
@@ -312,6 +376,15 @@ export default function SessionDetailPage() {
       `/trip/${encodeURIComponent(tripId)}/session/${encodeURIComponent(
         sessionId
       )}/scan`
+    );
+  };
+
+  const handleGoToNextSession = () => {
+    if (!nextSession) return;
+    router.push(
+      `/trip/${encodeURIComponent(tripId)}/session/${encodeURIComponent(
+        nextSession.id
+      )}`
     );
   };
 
@@ -476,6 +549,24 @@ export default function SessionDetailPage() {
             ? "Konfirmasi Kehadiran"
             : "Absen belum dibuka"}
         </Button>
+
+        {checkInStatus && nextSession && (
+          <Button
+            onClick={handleGoToNextSession}
+            variant="outline"
+            className="w-full gap-2 text-base py-3"
+          >
+            <Clock size={18} />
+            Lanjut ke Agenda Berikutnya
+          </Button>
+        )}
+
+        {/* info kalau ini agenda terakhir */}
+        {checkInStatus && !nextSession && (
+          <p className="text-xs text-muted-foreground text-center">
+            Ini adalah agenda terakhir pada trip ini
+          </p>
+        )}
       </div>
 
       <Card className="p-4 border border-border bg-muted/30">

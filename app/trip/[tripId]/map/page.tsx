@@ -149,24 +149,24 @@ export default function MapJourneyPage() {
         }
 
         const data: MapApiResponse = await res.json();
-        if (abort) return;
+        if (!abort) {
+          if (!data.ok) {
+            throw new Error(data.message || "Gagal memuat data peta");
+          }
 
-        if (!data.ok) {
-          throw new Error(data.message || "Gagal memuat data peta");
+          setTripName(data.trip?.name || "Peta Perjalanan");
+          setLocations(data.locations || []);
+          setRoutePath(data.routePath || []);
+
+          if (data.center) {
+            setCenter(data.center);
+          } else if (data.locations && data.locations.length > 0) {
+            const first = data.locations[0];
+            setCenter({ lat: first.lat, lng: first.lng });
+          }
+
+          initialFitDoneRef.current = false;
         }
-
-        setTripName(data.trip?.name || "Peta Perjalanan");
-        setLocations(data.locations || []);
-        setRoutePath(data.routePath || []);
-
-        if (data.center) {
-          setCenter(data.center);
-        } else if (data.locations && data.locations.length > 0) {
-          const first = data.locations[0];
-          setCenter({ lat: first.lat, lng: first.lng });
-        }
-
-        initialFitDoneRef.current = false;
       } catch (err: any) {
         console.error(err);
         if (!abort) {
@@ -227,7 +227,7 @@ export default function MapJourneyPage() {
     userPositionRef.current = userPosition;
   }, [userPosition]);
 
-  // Markers + polyline + initial fitBounds (TIDAK tergantung userPosition state langsung)
+  // Markers + routePath segmented polyline + initial fitBounds
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current) return;
     const map = mapRef.current;
@@ -237,6 +237,7 @@ export default function MapJourneyPage() {
 
     const bounds: L.LatLngExpression[] = [];
 
+    // 🔹 Marker tiap lokasi
     if (locations.length) {
       locations.forEach((loc, index) => {
         const isVisited = loc.visited;
@@ -271,26 +272,96 @@ export default function MapJourneyPage() {
       });
     }
 
-    let tripPath: L.LatLngExpression[] = [];
-
-    if (routePath.length > 1) {
-      tripPath = routePath.map((p) => [p.lat, p.lng] as L.LatLngExpression);
-    } else if (locations.length > 1) {
-      tripPath = locations.map(
-        (loc) => [loc.lat, loc.lng] as L.LatLngExpression
-      );
-    }
-
-    if (tripPath.length > 1) {
-      const polyline = L.polyline(tripPath, {
-        color: "#0ea5e9",
-        weight: 3,
-        opacity: 0.9,
-        lineJoin: "round",
-        lineCap: "round",
+    // Gambar garis rute trip (pakai routePath kalau ada)
+    if (routePath.length > 1 && locations.length > 1) {
+      // urutkan lokasi sesuai urutan hari + jam
+      const ordered = [...locations].sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        return a.time.localeCompare(b.time);
       });
-      polyline.addTo(layer);
-      tripPath.forEach((p) => bounds.push(p));
+
+      // cari index terdekat di routePath untuk tiap lokasi
+      const routeIndices = ordered.map((loc) => {
+        let bestIdx = 0;
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < routePath.length; i++) {
+          const p = routePath[i];
+          const dx = p.lat - loc.lat;
+          const dy = p.lng - loc.lng;
+          const dist = dx * dx + dy * dy;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+        return bestIdx;
+      });
+
+      for (let i = 0; i < ordered.length - 1; i++) {
+        const from = ordered[i];
+        const to = ordered[i + 1];
+
+        let idxFrom = routeIndices[i];
+        let idxTo = routeIndices[i + 1];
+
+        if (idxFrom === idxTo) continue;
+        if (idxFrom > idxTo) {
+          const tmp = idxFrom;
+          idxFrom = idxTo;
+          idxTo = tmp;
+        }
+
+        const segmentPoints = routePath
+          .slice(idxFrom, idxTo + 1)
+          .map((p) => [p.lat, p.lng] as L.LatLngExpression);
+
+        if (!segmentPoints.length) continue;
+
+        // Hijau kalau kedua lokasi sudah dikunjungi, selain itu biru
+        const color = from.visited && to.visited ? "#22c55e" : "#0ea5e9";
+
+        const segLine = L.polyline(segmentPoints, {
+          color,
+          weight: 3,
+          opacity: 0.9,
+          lineJoin: "round",
+          lineCap: "round",
+        });
+
+        segLine.addTo(layer);
+        segmentPoints.forEach((p) => bounds.push(p));
+      }
+    } else if (locations.length > 1) {
+      // fallback: garis lurus antar titik kalau routePath kosong
+      const ordered = [...locations].sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        return a.time.localeCompare(b.time);
+      });
+
+      for (let i = 0; i < ordered.length - 1; i++) {
+        const from = ordered[i];
+        const to = ordered[i + 1];
+
+        const color = from.visited && to.visited ? "#22c55e" : "#0ea5e9";
+
+        const segLine = L.polyline(
+          [
+            [from.lat, from.lng],
+            [to.lat, to.lng],
+          ],
+          {
+            color,
+            weight: 3,
+            opacity: 0.9,
+            lineJoin: "round",
+            lineCap: "round",
+          }
+        );
+
+        segLine.addTo(layer);
+        bounds.push([from.lat, from.lng]);
+        bounds.push([to.lat, to.lng]);
+      }
     }
 
     // tambahkan posisi user (kalau sudah ada) hanya untuk initial fit
@@ -389,7 +460,7 @@ export default function MapJourneyPage() {
     }
   }, [userPosition]);
 
-  // Rute user -> nextUnvisited
+  // Rute user -> nextUnvisited (orange)
   useEffect(() => {
     if (!userPosition || !nextUnvisited) {
       if (userRouteRef.current && userRouteLayerRef.current) {

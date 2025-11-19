@@ -329,13 +329,6 @@ export default function OverviewPage() {
                 {nextAgendaEta && (
                   <p className="text-xs text-primary mt-1">{nextAgendaEta}</p>
                 )}
-                {/* Info radius reminder (opsional) */}
-                {geoRadius?.reminder && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Pengingat jarak aktif kalau kamu sudah &lt;{" "}
-                    {geoRadius.reminder} m dari lokasi agenda.
-                  </p>
-                )}
                 {checkInStatus.checkedIn && (
                   <div className="mt-2 inline-flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-full border border-green-200">
                     <CheckCircle size={14} className="text-green-600" />

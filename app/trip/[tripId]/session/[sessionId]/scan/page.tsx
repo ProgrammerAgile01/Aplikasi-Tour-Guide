@@ -76,11 +76,25 @@ export default function ScanQRPage() {
           label: c.label || "Kamera",
         }));
         setCameras(mapped);
-        setCurrentCamIndex(0);
+
+        let initialIndex = 0;
+
+        const backIndex = mapped.findIndex((c) =>
+          /back|rear|belakang|environment/i.test(c.label)
+        );
+
+        if (backIndex >= 0) {
+          initialIndex = backIndex;
+        } else if (mapped.length > 1) {
+          // fallback: kalau ada lebih dari 1 kamera, pakai yang terakhir
+          initialIndex = mapped.length - 1;
+        }
+
+        setCurrentCamIndex(initialIndex);
         setStatus("scanning");
         setMessage("Arahkan kamera ke QR Code.");
 
-        await startScanner(mapped[0].id);
+        await startScanner(mapped[initialIndex].id);
       } catch (e: any) {
         if (cancelled) return;
         setStatus("error");
