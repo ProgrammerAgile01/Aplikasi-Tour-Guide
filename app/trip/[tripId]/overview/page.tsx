@@ -53,45 +53,63 @@ type OverviewData = {
   }[];
 };
 
-function getNextAgendaEta(startAt?: string) {
+function getNextAgendaEta(
+  startAt?: string,
+  endAt?: string,
+  graceMinutes: number = 15
+) {
   if (!startAt) return null;
 
   const start = new Date(startAt);
   if (Number.isNaN(start.getTime())) return null;
 
   const now = new Date();
-  const diffMs = start.getTime() - now.getTime();
-  const diffMinutes = Math.round(diffMs / 60000);
+  const graceMs = graceMinutes * 60_000;
 
-  if (diffMinutes <= -5) {
+  const windowStart = new Date(start.getTime() - graceMs);
+
+  let windowEnd: Date | null = null;
+  if (endAt) {
+    const end = new Date(endAt);
+    if (!Number.isNaN(end.getTime())) {
+      windowEnd = new Date(end.getTime() + graceMs);
+    }
+  }
+
+  // Kalau punya windowEnd dan sekarang sudah lewat semua toleransi → lewat
+  if (windowEnd && now > windowEnd) {
     return "Agenda ini sudah lewat";
   }
 
-  if (Math.abs(diffMinutes) <= 5) {
-    return "Sedang berlangsung sekarang";
+  // Belum masuk window check-in → hitung ETA ke windowStart
+  if (now < windowStart) {
+    const diffMs = windowStart.getTime() - now.getTime();
+    const diffMinutes = Math.round(diffMs / 60000);
+
+    const diffHoursTotal = Math.floor(diffMinutes / 60);
+    const remainingMinutes = diffMinutes % 60;
+    const diffDays = Math.floor(diffHoursTotal / 24);
+    const remainingHours = diffHoursTotal % 24;
+
+    const parts: string[] = [];
+
+    if (diffDays > 0) {
+      parts.push(`${diffDays} hari`);
+    }
+    if (remainingHours > 0) {
+      parts.push(`${remainingHours} jam`);
+    }
+    if (diffDays === 0 && remainingMinutes > 0) {
+      parts.push(`${remainingMinutes} menit`);
+    }
+
+    if (!parts.length) return null;
+
+    return `Absen dibuka dalam ${parts.join(" ")}`;
   }
 
-  const diffHoursTotal = Math.floor(diffMinutes / 60);
-  const remainingMinutes = diffMinutes % 60;
-  const diffDays = Math.floor(diffHoursTotal / 24);
-  const remainingHours = diffHoursTotal % 24;
-
-  const parts: string[] = [];
-
-  if (diffDays > 0) {
-    parts.push(`${diffDays} hari`);
-  }
-  if (remainingHours > 0) {
-    parts.push(`${remainingHours} jam`);
-  }
-
-  if (diffDays === 0 && remainingMinutes > 0) {
-    parts.push(`${remainingMinutes} menit`);
-  }
-
-  if (!parts.length) return null;
-
-  return `Absen dibuka dalam ${parts.join(" ")}`;
+  // Di dalam window check-in (antara windowStart dan windowEnd / minimal windowStart ke depan)
+  return "Absen sedang dibuka sekarang";
 }
 
 export default function OverviewPage() {
@@ -185,7 +203,11 @@ export default function OverviewPage() {
     : false;
 
   const nextAgendaEta = nextAgenda
-    ? getNextAgendaEta(nextAgenda.startAt)
+    ? getNextAgendaEta(
+        nextAgenda.startAt,
+        nextAgenda.endAt,
+        attendanceGraceMinutes
+      )
     : null;
 
   // geo reminder untuk nextAgenda (kalau ada)

@@ -128,7 +128,7 @@ async function getScheduleDetail(
 
             base.setHours(h, m, 0, 0);
             const s = new Date(base);
-            const e = new Date(s.getTime() + 2 * 60 * 60 * 1000); // window 2 jam
+            const e = new Date(s.getTime());
 
             startAt = s.toISOString();
             endAt = e.toISOString();
@@ -387,7 +387,7 @@ export default function SessionDetailPage() {
   const mapHref = useMemo(() => (data ? buildMapHref(data) : null), [data]);
 
   const canCheckInNow = useMemo(() => {
-    if (!data) return true; // atau false kalau mau default dikunci
+    if (!data) return false; // atau false kalau mau default dikunci
     return isNowWithinWindow(data.startAt, data.endAt, attendanceGraceMinutes);
   }, [data?.startAt, data?.endAt, attendanceGraceMinutes]);
 

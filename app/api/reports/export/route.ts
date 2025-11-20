@@ -222,35 +222,126 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
 
   const nowText = new Date().toLocaleString("id-ID");
 
-  const sheetData: any[][] = [
-    ["LAPORAN PERJALANAN", trip.name],
-    ["Tanggal Ekspor", nowText],
-    [],
-    ["Ringkasan"],
-    ["Total Peserta", totalParticipants],
-    ["Total Agenda", totalSchedules],
-    ["Total Foto Terunggah", totalPhotoUploaded],
-    [
-      "Rata-rata Kehadiran",
-      avgAttendancePercent !== null ? `${avgAttendancePercent}%` : "-",
-    ],
-    [],
-    ["Kehadiran per Hari"],
-    ["Hari", "Tanggal", "Hadir", "Total", "Persentase"],
-    ...dailyAttendance.map((d) => [
-      d.day,
-      d.date,
-      d.count,
-      d.total,
-      `${d.percentage}%`,
-    ]),
-    [],
-    ["Top Agenda"],
-    ["Agenda", "Check-in", "Persentase"],
-    ...topAgenda.map((a) => [a.title, a.checkins, `${a.percentage}%`]),
+  const wb = XLSX.utils.book_new();
+
+  /* =========================
+   *  SHEET 1: Ringkasan & Kehadiran
+   * ========================= */
+  const summaryData: any[][] = [];
+
+  // Judul besar
+  summaryData.push(["LAPORAN PERJALANAN"]);
+  summaryData.push([trip.name]);
+  summaryData.push(["Tanggal ekspor", nowText]);
+  summaryData.push([]);
+
+  // Ringkasan Trip
+  summaryData.push(["RINGKASAN TRIP"]);
+  summaryData.push([
+    "Total peserta",
+    totalParticipants,
+    "",
+    "Total agenda",
+    totalSchedules,
+  ]);
+  summaryData.push([
+    "Total foto terunggah",
+    totalPhotoUploaded,
+    "",
+    "Rata-rata kehadiran",
+    avgAttendancePercent !== null ? `${avgAttendancePercent}%` : "-",
+  ]);
+
+  summaryData.push([]);
+  summaryData.push(["KEHADIRAN PER HARI"]);
+
+  if (dailyAttendance.length === 0) {
+    summaryData.push(["Belum ada data kehadiran untuk trip ini."]);
+  } else {
+    summaryData.push([
+      "Hari",
+      "Tanggal",
+      "Peserta hadir",
+      "Total peserta",
+      "Persentase kehadiran",
+    ]);
+    dailyAttendance.forEach((d) => {
+      summaryData.push([d.day, d.date, d.count, d.total, `${d.percentage}%`]);
+    });
+  }
+
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+
+  // Lebar kolom biar rapi
+  wsSummary["!cols"] = [
+    { wch: 22 }, // A
+    { wch: 25 }, // B
+    { wch: 4 }, // C
+    { wch: 22 }, // D
+    { wch: 25 }, // E
   ];
 
-  // Tambahan: Statistik Foto jika ada
+  // Merge untuk judul & subjudul
+  wsSummary["!merges"] = [
+    // "LAPORAN PERJALANAN"
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+    // nama trip
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+    // "RINGKASAN TRIP"
+    { s: { r: 4, c: 0 }, e: { r: 4, c: 4 } },
+    // "KEHADIRAN PER HARI"
+    { s: { r: 8, c: 0 }, e: { r: 8, c: 4 } },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Ringkasan & Kehadiran");
+
+  /* =========================
+   *  SHEET 2: Top Agenda
+   * ========================= */
+  const agendaData: any[][] = [];
+
+  agendaData.push(["TOP AGENDA PALING BANYAK DIKONFIRMASI"]);
+  agendaData.push([trip.name]);
+  agendaData.push([
+    "Keterangan",
+    "Daftar agenda dengan jumlah check-in terbanyak selama trip.",
+  ]);
+  agendaData.push([]);
+
+  if (topAgenda.length === 0) {
+    agendaData.push(["Belum ada agenda yang memiliki data check-in."]);
+  } else {
+    agendaData.push([
+      "No",
+      "Nama agenda",
+      "Jumlah check-in",
+      "Persentase terhadap total peserta",
+    ]);
+
+    topAgenda.forEach((a, idx) => {
+      agendaData.push([idx + 1, a.title, a.checkins, `${a.percentage}%`]);
+    });
+  }
+
+  const wsAgenda = XLSX.utils.aoa_to_sheet(agendaData);
+
+  wsAgenda["!cols"] = [
+    { wch: 6 }, // No
+    { wch: 40 }, // Nama agenda
+    { wch: 18 }, // Check-in
+    { wch: 28 }, // Persentase
+  ];
+
+  wsAgenda["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // judul besar
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }, // nama trip
+  ];
+
+  XLSX.utils.book_append_sheet(wb, wsAgenda, "Top Agenda");
+
+  /* =========================
+   *  SHEET 3: Statistik Foto (opsional)
+   * ========================= */
   if (photoStats.length > 0) {
     const totalUploaded = photoStats.reduce((s, x) => s + x.uploaded, 0);
     const totalApproved = photoStats.reduce((s, x) => s + x.approved, 0);
@@ -258,27 +349,60 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
     const approvalRate =
       totalUploaded > 0 ? Math.round((totalApproved / totalUploaded) * 100) : 0;
 
-    sheetData.push(
-      [],
-      ["Statistik Foto Peserta"],
-      ["Periode", "Total Upload", "Disetujui", "Menunggu", "Persentase Setuju"],
-      ...photoStats.map((p) => [
-        p.day,
-        p.uploaded,
-        p.approved,
-        p.pending,
+    const photoData: any[][] = [];
+    photoData.push(["STATISTIK FOTO PESERTA"]);
+    photoData.push([trip.name]);
+    photoData.push([
+      "Ringkasan",
+      `Total upload: ${totalUploaded}, Disetujui: ${totalApproved}, Menunggu: ${totalPending}, Tingkat persetujuan: ${approvalRate}%`,
+    ]);
+    photoData.push([]);
+
+    photoData.push([
+      "Periode",
+      "Total upload",
+      "Disetujui",
+      "Menunggu",
+      "Tingkat persetujuan",
+    ]);
+
+    photoStats.forEach((p) => {
+      const percent =
         p.uploaded > 0
           ? `${Math.round((p.approved / p.uploaded) * 100)}%`
-          : "0%",
-      ]),
-      ["Total", totalUploaded, totalApproved, totalPending, `${approvalRate}%`]
-    );
+          : "0%";
+
+      photoData.push([p.day, p.uploaded, p.approved, p.pending, percent]);
+    });
+
+    photoData.push([
+      "Total",
+      totalUploaded,
+      totalApproved,
+      totalPending,
+      `${approvalRate}%`,
+    ]);
+
+    const wsPhoto = XLSX.utils.aoa_to_sheet(photoData);
+
+    wsPhoto["!cols"] = [
+      { wch: 30 }, // Periode
+      { wch: 15 }, // Total upload
+      { wch: 12 }, // Disetujui
+      { wch: 12 }, // Menunggu
+      { wch: 20 }, // Persentase
+    ];
+
+    wsPhoto["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // judul
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, // nama trip
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } }, // ringkasan
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsPhoto, "Statistik Foto");
   }
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(sheetData);
-  XLSX.utils.book_append_sheet(wb, ws, "Laporan");
-
+  // Tulis workbook jadi buffer
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   return buf as Buffer;
 }
@@ -287,24 +411,85 @@ function buildExcelBuffer(report: Awaited<ReturnType<typeof buildReportData>>) {
  *   PDF (pdf-lib)
  * ========================= */
 
-function getLogoPath(): string | null {
-  // Sesuaikan dengan file logo yang kamu pakai (png/jpg)
-  const candidatePng = path.join(process.cwd(), "public", "logo-tourguide.png");
-  const candidateJpg = path.join(process.cwd(), "public", "logo-tourguide.jpg");
-  const candidateJpeg = path.join(
-    process.cwd(),
-    "public",
-    "logo-tourguide.jpeg"
-  );
+async function getLogoBytesFromSettingOrPublic(
+  baseUrl?: string
+): Promise<{ bytes: Uint8Array | Buffer; isPng: boolean } | null> {
+  // 1. Coba ambil dari setting (URL bisa absolute atau relative)
+  try {
+    const appSetting = await prisma.setting.findFirst({
+      select: { logoUrl: true },
+    });
 
-  if (fs.existsSync(candidatePng)) return candidatePng;
-  if (fs.existsSync(candidateJpg)) return candidateJpg;
-  if (fs.existsSync(candidateJpeg)) return candidateJpeg;
+    const rawUrl = appSetting?.logoUrl?.trim();
+    if (rawUrl) {
+      const isAbsolute = /^https?:\/\//i.test(rawUrl);
+
+      const base =
+        baseUrl ||
+        process.env.NEXT_PUBLIC_APP_URL || // misal: https://tourguide.agilestore.id
+        "";
+
+      let finalUrl = rawUrl;
+      if (!isAbsolute) {
+        if (!base) {
+          console.warn(
+            "logoUrl relative tapi tidak ada baseUrl / NEXT_PUBLIC_APP_URL"
+          );
+        } else {
+          const baseClean = base.replace(/\/$/, "");
+          const pathClean = rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`;
+          finalUrl = baseClean + pathClean;
+        }
+      }
+
+      if (finalUrl) {
+        try {
+          const res = await fetch(finalUrl);
+          if (res.ok) {
+            const arrayBuffer = await res.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            const lower = finalUrl.toLowerCase();
+            const isPng =
+              lower.endsWith(".png") ||
+              res.headers.get("content-type") === "image/png";
+            return { bytes, isPng };
+          } else {
+            console.warn("Gagal fetch logo dari URL setting:", res.status);
+          }
+        } catch (e) {
+          console.warn("Error fetch logo dari URL setting:", e);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Gagal baca setting logo dari database:", e);
+  }
+
+  // 2. Fallback ke file di public
+  const candidates = [
+    { file: "logo-temanwisata.png", isPng: true },
+    { file: "logo-temanwisata.jpg", isPng: false },
+    { file: "logo-temanwisata.jpeg", isPng: false },
+  ];
+
+  for (const c of candidates) {
+    try {
+      const fullPath = path.join(process.cwd(), "public", c.file);
+      if (fs.existsSync(fullPath)) {
+        const bytes = await fs.promises.readFile(fullPath);
+        return { bytes, isPng: c.isPng };
+      }
+    } catch (e) {
+      console.warn("Gagal baca logo fallback:", e);
+    }
+  }
+
   return null;
 }
 
 async function buildPdfBuffer(
-  report: Awaited<ReturnType<typeof buildReportData>>
+  report: Awaited<ReturnType<typeof buildReportData>>,
+  baseUrl?: string
 ) {
   const {
     trip,
@@ -318,109 +503,143 @@ async function buildPdfBuffer(
   } = report;
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage();
-  const { width, height } = page.getSize();
+  let page = pdfDoc.addPage();
+  let { width, height } = page.getSize();
 
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Header bar
-  const headerHeight = 70;
+  const marginX = 40;
+  const headerHeight = 80;
+
+  // HEADER KOP
   page.drawRectangle({
     x: 0,
     y: height - headerHeight,
     width,
     height: headerHeight,
-    color: rgb(0.06, 0.09, 0.16), // slate-900
+    color: rgb(1, 1, 1),
   });
 
-  // Logo (optional)
-  const logoPath = getLogoPath();
-  if (logoPath) {
-    try {
-      const imgBytes = await fs.promises.readFile(logoPath);
-      let logoImage;
-      if (logoPath.endsWith(".png")) {
-        logoImage = await pdfDoc.embedPng(imgBytes);
-      } else {
-        logoImage = await pdfDoc.embedJpg(imgBytes);
-      }
-      // Maksimum tinggi logo agar tidak nabrak header
-      const maxLogoHeight = headerHeight - 20; // 20 px padding atas bawah
-      const scale = maxLogoHeight / logoImage.height;
+  // strip warna di bawah header
+  page.drawRectangle({
+    x: 0,
+    y: height - headerHeight,
+    width,
+    height: 3,
+    color: rgb(0.08, 0.38, 0.8),
+  });
 
+  let titleStartX = marginX;
+
+  // LOGO dari setting / fallback
+  const logoInfo = await getLogoBytesFromSettingOrPublic(baseUrl);
+  if (logoInfo) {
+    try {
+      const logoImage = logoInfo.isPng
+        ? await pdfDoc.embedPng(logoInfo.bytes)
+        : await pdfDoc.embedJpg(logoInfo.bytes);
+
+      const maxLogoHeight = headerHeight - 24;
+      const scale = maxLogoHeight / logoImage.height;
       const logoWidth = logoImage.width * scale;
       const logoHeight = logoImage.height * scale;
 
+      const logoX = marginX;
+      const logoY = height - headerHeight + (headerHeight - logoHeight) / 2;
+
       page.drawImage(logoImage, {
-        x: 40,
-        y: height - headerHeight + (headerHeight - logoHeight) / 2,
+        x: logoX,
+        y: logoY,
         width: logoWidth,
         height: logoHeight,
       });
+
+      titleStartX = logoX + logoWidth + 20;
     } catch (e) {
-      console.warn("Gagal memuat logo:", e);
+      console.warn("Gagal embed logo untuk PDF:", e);
     }
   }
 
-  // Title
-  const titleX = logoPath ? 140 : 40;
-  page.drawText("Laporan Trip", {
-    x: titleX,
-    y: height - 35,
-    size: 18,
+  // Judul kop
+  page.drawText("LAPORAN PERJALANAN", {
+    x: titleStartX,
+    y: height - 30,
+    size: 16,
     font: fontBold,
-    color: rgb(1, 1, 1),
+    color: rgb(0.05, 0.07, 0.13),
   });
+
   page.drawText(trip.name, {
-    x: titleX,
-    y: height - 55,
-    size: 12,
+    x: titleStartX,
+    y: height - 50,
+    size: 11,
     font: fontRegular,
-    color: rgb(1, 1, 1),
+    color: rgb(0.1, 0.1, 0.1),
   });
-
-  // Body start
-  let cursorY = height - headerHeight - 40;
-
-  const writeLabelValue = (label: string, value: string) => {
-    const labelWidth = fontBold.widthOfTextAtSize(label, 11);
-    page.drawText(label, {
-      x: 40,
-      y: cursorY,
-      size: 11,
-      font: fontBold,
-      color: rgb(0.07, 0.09, 0.11),
-    });
-    page.drawText(value, {
-      x: 40 + labelWidth + 6,
-      y: cursorY,
-      size: 11,
-      font: fontRegular,
-      color: rgb(0.1, 0.1, 0.1),
-    });
-    cursorY -= 16;
-  };
 
   const nowText = new Date().toLocaleString("id-ID");
   page.drawText(`Tanggal ekspor: ${nowText}`, {
-    x: width - 220,
-    y: height - headerHeight - 20,
+    x: width - marginX - 180,
+    y: height - headerHeight - 18,
     size: 9,
     font: fontRegular,
-    color: rgb(0.3, 0.3, 0.3),
+    color: rgb(0.4, 0.4, 0.4),
   });
 
-  // Ringkasan
-  page.drawText("Ringkasan", {
-    x: 40,
-    y: cursorY,
-    size: 14,
-    font: fontBold,
-    color: rgb(0.07, 0.09, 0.11),
-  });
-  cursorY -= 22;
+  // BODY / SECTION
+  let cursorY = height - headerHeight - 40;
 
+  const ensureSpace = (neededHeight: number) => {
+    if (cursorY - neededHeight < 60) {
+      page = pdfDoc.addPage();
+      ({ width, height } = page.getSize());
+      cursorY = height - 60;
+    }
+  };
+
+  const drawSectionTitle = (text: string) => {
+    ensureSpace(26);
+    page.drawText(text, {
+      x: marginX,
+      y: cursorY,
+      size: 13,
+      font: fontBold,
+      color: rgb(0.05, 0.07, 0.13),
+    });
+    page.drawRectangle({
+      x: marginX,
+      y: cursorY - 4,
+      width: 200,
+      height: 1,
+      color: rgb(0.75, 0.78, 0.82),
+    });
+    cursorY -= 22;
+  };
+
+  const writeLabelValue = (label: string, value: string) => {
+    ensureSpace(16);
+    const labelWidth = fontBold.widthOfTextAtSize(label, 10);
+    page.drawText(label, {
+      x: marginX,
+      y: cursorY,
+      size: 10,
+      font: fontBold,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+    page.drawText(value, {
+      x: marginX + labelWidth + 6,
+      y: cursorY,
+      size: 10,
+      font: fontRegular,
+      color: rgb(0.1, 0.1, 0.1),
+    });
+    cursorY -= 14;
+  };
+
+  // ---- Ringkasan Trip
+  drawSectionTitle("Ringkasan Trip");
+  writeLabelValue("Nama trip", trip.name);
   writeLabelValue("Total peserta", String(totalParticipants));
   writeLabelValue("Total agenda", String(totalSchedules));
   writeLabelValue("Total foto terunggah", String(totalPhotoUploaded));
@@ -428,113 +647,34 @@ async function buildPdfBuffer(
     "Rata-rata kehadiran",
     avgAttendancePercent !== null ? `${avgAttendancePercent}%` : "-"
   );
-
   cursorY -= 10;
 
-  // Kehadiran per Hari
-  page.drawText("Kehadiran per Hari", {
-    x: 40,
-    y: cursorY,
-    size: 14,
-    font: fontBold,
-    color: rgb(0.07, 0.09, 0.11),
-  });
-  cursorY -= 20;
+  // ---- Kehadiran per Hari
+  drawSectionTitle("Kehadiran per Hari");
 
-  const colX = [40, 120, 280, 340, 410];
-
-  const drawRow = (y: number, row: string[], header = false) => {
-    row.forEach((cell, i) => {
-      page.drawText(cell, {
-        x: colX[i],
-        y,
-        size: 10,
-        font: header ? fontBold : fontRegular,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-    });
-  };
-
-  drawRow(cursorY, ["Hari", "Tanggal", "Hadir", "Total", "%"], true);
-  cursorY -= 16;
-
-  dailyAttendance.forEach((d) => {
-    if (cursorY < 80) {
-      const newPage = pdfDoc.addPage();
-      cursorY = newPage.getSize().height - 80;
-    }
-    drawRow(cursorY, [
-      d.day,
-      d.date,
-      String(d.count),
-      String(d.total),
-      `${d.percentage}%`,
-    ]);
-    cursorY -= 14;
-  });
-
-  cursorY -= 20;
-
-  // Top Agenda
-  page.drawText("Top Agenda Paling Banyak Dikonfirmasi", {
-    x: 40,
-    y: cursorY,
-    size: 14,
-    font: fontBold,
-    color: rgb(0.07, 0.09, 0.11),
-  });
-  cursorY -= 20;
-
-  const colX2 = [40, 300, 380];
-
-  const drawRow2 = (y: number, row: string[], header = false) => {
-    row.forEach((cell, i) => {
-      page.drawText(cell, {
-        x: colX2[i],
-        y,
-        size: 10,
-        font: header ? fontBold : fontRegular,
-        color: rgb(0.1, 0.1, 0.1),
-      });
-    });
-  };
-
-  drawRow2(cursorY, ["Agenda", "Check-in", "%"], true);
-  cursorY -= 16;
-
-  topAgenda.forEach((a) => {
-    if (cursorY < 80) {
-      const newPage = pdfDoc.addPage();
-      cursorY = newPage.getSize().height - 80;
-    }
-    drawRow2(cursorY, [a.title, String(a.checkins), `${a.percentage}%`]);
-    cursorY -= 14;
-  });
-
-  // Statistik Foto (kalau ada)
-  if (photoStats.length > 0) {
-    cursorY -= 20;
-    const pageForPhoto = cursorY < 120 ? pdfDoc.addPage() : page; // kalau sisa sempit, pakai halaman baru
-    if (cursorY < 120) {
-      const size = pageForPhoto.getSize();
-      cursorY = size.height - 80;
-    }
-
-    pageForPhoto.drawText("Statistik Foto yang Diunggah Peserta", {
-      x: 40,
+  if (dailyAttendance.length === 0) {
+    ensureSpace(16);
+    page.drawText("Belum ada data kehadiran untuk trip ini.", {
+      x: marginX,
       y: cursorY,
-      size: 14,
-      font: fontBold,
-      color: rgb(0.07, 0.09, 0.11),
+      size: 10,
+      font: fontRegular,
+      color: rgb(0.3, 0.3, 0.3),
     });
-    cursorY -= 20;
+    cursorY -= 16;
+  } else {
+    const colX = [
+      marginX,
+      marginX + 80,
+      marginX + 220,
+      marginX + 300,
+      marginX + 360,
+    ];
 
-    const colX3 = [40, 260, 340, 420, 500];
-
-    const drawRow3 = (y: number, row: string[], header = false) => {
+    const drawRow = (y: number, row: string[], header: boolean = false) => {
       row.forEach((cell, i) => {
-        pageForPhoto.drawText(cell, {
-          x: colX3[i],
+        page.drawText(cell, {
+          x: colX[i],
           y,
           size: 9,
           font: header ? fontBold : fontRegular,
@@ -543,12 +683,75 @@ async function buildPdfBuffer(
       });
     };
 
-    drawRow3(
-      cursorY,
-      ["Periode", "Upload", "Disetujui", "Menunggu", "%"],
-      true
-    );
+    ensureSpace(20);
+    drawRow(cursorY, ["Hari", "Tanggal", "Hadir", "Total", "%"], true);
     cursorY -= 14;
+
+    dailyAttendance.forEach((d) => {
+      ensureSpace(16);
+      drawRow(cursorY, [
+        d.day,
+        d.date,
+        String(d.count),
+        String(d.total),
+        `${d.percentage}%`,
+      ]);
+      cursorY -= 12;
+    });
+  }
+
+  cursorY -= 10;
+
+  // ---- Top Agenda
+  drawSectionTitle("Top Agenda Paling Banyak Dikonfirmasi");
+
+  if (topAgenda.length === 0) {
+    ensureSpace(16);
+    page.drawText("Belum ada agenda yang memiliki data check-in.", {
+      x: marginX,
+      y: cursorY,
+      size: 10,
+      font: fontRegular,
+      color: rgb(0.3, 0.3, 0.3),
+    });
+    cursorY -= 16;
+  } else {
+    const colX2 = [marginX, marginX + 240, marginX + 360, marginX + 430];
+
+    const drawRow2 = (y: number, row: string[], header: boolean = false) => {
+      row.forEach((cell, i) => {
+        page.drawText(cell, {
+          x: colX2[i],
+          y,
+          size: 9,
+          font: header ? fontBold : fontRegular,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      });
+    };
+
+    ensureSpace(20);
+    drawRow2(cursorY, ["No", "Agenda", "Check-in", "% Peserta"], true);
+    cursorY -= 14;
+
+    topAgenda.forEach((a, idx) => {
+      ensureSpace(16);
+      const title =
+        a.title.length > 60 ? a.title.slice(0, 57) + "..." : a.title;
+      drawRow2(cursorY, [
+        String(idx + 1),
+        title,
+        String(a.checkins),
+        `${a.percentage}%`,
+      ]);
+      cursorY -= 12;
+    });
+  }
+
+  // ---- Statistik Foto (jika ada)
+  if (photoStats.length > 0) {
+    cursorY -= 10;
+    drawSectionTitle("Statistik Foto yang Diunggah Peserta");
 
     const totalUploaded = photoStats.reduce((s, x) => s + x.uploaded, 0);
     const totalApproved = photoStats.reduce((s, x) => s + x.approved, 0);
@@ -556,15 +759,46 @@ async function buildPdfBuffer(
     const approvalRate =
       totalUploaded > 0 ? Math.round((totalApproved / totalUploaded) * 100) : 0;
 
+    writeLabelValue(
+      "Ringkasan",
+      `Total upload: ${totalUploaded}, Disetujui: ${totalApproved}, Menunggu: ${totalPending}, Tingkat persetujuan: ${approvalRate}%`
+    );
+    cursorY -= 4;
+
+    const colX3 = [
+      marginX,
+      marginX + 200,
+      marginX + 280,
+      marginX + 360,
+      marginX + 430,
+    ];
+
+    const drawRow3 = (y: number, row: string[], header: boolean = false) => {
+      row.forEach((cell, i) => {
+        page.drawText(cell, {
+          x: colX3[i],
+          y,
+          size: 8.5,
+          font: header ? fontBold : fontRegular,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      });
+    };
+
+    ensureSpace(20);
+    drawRow3(
+      cursorY,
+      ["Periode", "Total upload", "Disetujui", "Menunggu", "%"],
+      true
+    );
+    cursorY -= 12;
+
     photoStats.forEach((p) => {
-      if (cursorY < 80) {
-        const newPage = pdfDoc.addPage();
-        cursorY = newPage.getSize().height - 80;
-      }
+      ensureSpace(14);
       const percent =
         p.uploaded > 0
           ? `${Math.round((p.approved / p.uploaded) * 100)}%`
-          : "0%";
+          : `0%`;
 
       drawRow3(cursorY, [
         p.day,
@@ -573,11 +807,10 @@ async function buildPdfBuffer(
         String(p.pending),
         percent,
       ]);
-      cursorY -= 12;
+      cursorY -= 10;
     });
 
-    // Total row
-    cursorY -= 10;
+    ensureSpace(16);
     drawRow3(cursorY, [
       "Total",
       String(totalUploaded),
@@ -585,6 +818,7 @@ async function buildPdfBuffer(
       String(totalPending),
       `${approvalRate}%`,
     ]);
+    cursorY -= 12;
   }
 
   const pdfBytes = await pdfDoc.save();
@@ -616,6 +850,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const tripId = url.searchParams.get("tripId");
     const format = (url.searchParams.get("format") || "excel").toLowerCase();
+    const origin = url.origin; // untuk logo relative
 
     if (!tripId) {
       return NextResponse.json(
@@ -643,7 +878,7 @@ export async function GET(req: Request) {
         },
       });
     } else {
-      const buf = await buildPdfBuffer(report);
+      const buf = await buildPdfBuffer(report, origin);
       return new NextResponse(buf, {
         status: 200,
         headers: {
