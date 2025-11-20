@@ -45,10 +45,10 @@ export async function GET(req: Request) {
     // Pastikan trip ada
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, deletedAt: true },
     });
 
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan" },
         { status: 404 }

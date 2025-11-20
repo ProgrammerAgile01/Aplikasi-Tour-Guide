@@ -8,6 +8,9 @@ export async function GET(req: Request) {
   try {
     // 1. Ambil semua trip (urut terbaru dulu)
     const trips = await prisma.trip.findMany({
+      where: {
+        deletedAt: null,
+      },
       orderBy: { startDate: "desc" },
     });
 

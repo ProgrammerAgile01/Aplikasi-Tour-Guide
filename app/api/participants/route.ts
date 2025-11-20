@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const where: any = { tripId };
+    const where: any = { tripId, deletedAt: null };
     if (q) {
       where.OR = [
         { name: { contains: q, mode: "insensitive" } },
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
     // cek trip
     const trip = await prisma.trip.findUnique({ where: { id: data.tripId } });
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan" },
         { status: 404 }

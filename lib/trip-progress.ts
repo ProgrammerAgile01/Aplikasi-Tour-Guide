@@ -5,22 +5,22 @@ export async function updateTripStatusIfAllCompleted(tripId: string) {
 
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    select: { status: true },
+    select: { status: true, deletedAt: true },
   });
 
   // kalau trip tidak ada atau sudah completed → stop
-  if (!trip || trip.status === "completed") return;
+  if (!trip || trip.status === "completed" || trip.deletedAt) return;
 
   // hitung peserta
   const participantsCount = await prisma.participant.count({
-    where: { tripId },
+    where: { tripId, deletedAt: null },
   });
 
   if (!participantsCount) return;
 
   // hitung SEMUA sesi untuk trip ini (tidak peduli isChanged/isAdditional)
   const requiredSessionsCount = await prisma.schedule.count({
-    where: { tripId },
+    where: { tripId, deletedAt: null },
   });
 
   if (!requiredSessionsCount) return;

@@ -40,7 +40,7 @@ export async function GET(
 
   try {
     const item = await prisma.trip.findUnique({ where: { id } });
-    if (!item)
+    if (!item || item.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan." },
         { status: 404 }
@@ -136,7 +136,12 @@ export async function DELETE(
     );
 
   try {
-    await prisma.trip.delete({ where: { id } });
+    await prisma.trip.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     if (err?.code === "P2025") {

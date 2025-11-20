@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     const data = CreateSchema.parse(body);
 
     const trip = await prisma.trip.findUnique({ where: { id: data.tripId } });
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan." },
         { status: 404 }

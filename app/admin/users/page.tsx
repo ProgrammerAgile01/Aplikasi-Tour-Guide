@@ -228,7 +228,7 @@ export default function AdminUsersPage() {
               ?
             </p>
             <p className="mt-1 text-xs text-gray-500">
-              Tindakan ini tidak dapat dibatalkan.
+              Akun pengguna akan dipindahkan ke sampah
             </p>
           </div>
           <DialogFooter className="mt-6 flex justify-end gap-2">

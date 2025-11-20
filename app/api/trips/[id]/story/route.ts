@@ -58,7 +58,7 @@ export async function GET(
       where: { id: tripId },
     });
 
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan" },
         { status: 404 }
@@ -89,7 +89,7 @@ export async function GET(
 
     // ===== 2. semua foto gallery APPROVED peserta ini =====
     const galleries = await prisma.gallery.findMany({
-      where: { tripId, participantId, status: "APPROVED" },
+      where: { tripId, participantId, status: "APPROVED", deletedAt: null },
       orderBy: { createdAt: "asc" },
     });
 

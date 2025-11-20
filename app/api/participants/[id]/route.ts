@@ -34,7 +34,7 @@ export async function GET(req: Request, { params }: { params: any }) {
       );
 
     const item = await prisma.participant.findUnique({ where: { id } });
-    if (!item)
+    if (!item || item.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Peserta tidak ditemukan" },
         { status: 404 }
@@ -102,7 +102,12 @@ export async function DELETE(req: Request, { params }: { params: any }) {
         { status: 400 }
       );
 
-    await prisma.participant.delete({ where: { id } });
+    await prisma.participant.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("DELETE /api/participants/[id] error:", err);

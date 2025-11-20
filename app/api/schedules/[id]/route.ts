@@ -51,7 +51,7 @@ export async function GET(
 
   try {
     const item = await prisma.schedule.findUnique({ where: { id: safeId } });
-    if (!item)
+    if (!item || item.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Jadwal tidak ditemukan." },
         { status: 404 }
@@ -138,7 +138,12 @@ export async function DELETE(
     );
 
   try {
-    await prisma.schedule.delete({ where: { id: safeId } });
+    await prisma.schedule.update({
+      where: { id: safeId },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     if (err?.code === "P2025") {

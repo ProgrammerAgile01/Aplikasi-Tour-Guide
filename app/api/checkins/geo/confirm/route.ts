@@ -102,10 +102,11 @@ export async function POST(req: Request) {
         locationLat: true,
         locationLon: true,
         title: true,
+        deletedAt: true
       },
     });
 
-    if (!schedule || schedule.tripId !== tripId) {
+    if (!schedule || schedule.tripId !== tripId || schedule.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Sesi tidak valid untuk trip ini" },
         { status: 400 }
@@ -155,13 +156,20 @@ export async function POST(req: Request) {
     // temukan participant dari user (whatsapp / name)
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
+    if (!user || user.deletedAt) {
+      return NextResponse.json(
+        { ok: false, message: "User tidak ditemukan di trip ini" },
+        { status: 404 }
+      );
+    }
+
     let participant = await prisma.participant.findFirst({
-      where: { tripId, whatsapp: user?.whatsapp ?? "" },
+      where: { tripId, whatsapp: user?.whatsapp ?? "", deletedAt: null },
     });
 
     if (!participant) {
       participant = await prisma.participant.findFirst({
-        where: { tripId, name: user?.name ?? "" },
+        where: { tripId, name: user?.name ?? "", deletedAt: null },
       });
     }
 

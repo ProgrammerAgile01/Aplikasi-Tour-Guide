@@ -8,7 +8,7 @@ export async function GET(req: Request) {
     const take = Number(searchParams.get("take") ?? 100);
     const skip = Number(searchParams.get("skip") ?? 0);
 
-    const where: any = {};
+    const where: any = { deletedAt: null };
     if (q) {
       where.OR = [
         { name: { contains: q, mode: "insensitive" } },

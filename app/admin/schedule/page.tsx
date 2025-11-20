@@ -1258,8 +1258,7 @@ export default function AdminSchedulePage() {
                                       <DialogTitle>Hapus Jadwal?</DialogTitle>
                                     </DialogHeader>
                                     <p className="text-slate-600">
-                                      Tindakan ini tidak bisa dibatalkan. Yakin
-                                      ingin menghapus jadwal ini?
+                                      Data jadwal akan dipindahkan ke sampah
                                     </p>
                                     <div className="mt-4 flex gap-2">
                                       <Button

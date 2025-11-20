@@ -122,11 +122,17 @@ export async function DELETE(
       );
     }
 
-    await prisma.participantBadge.deleteMany({
-      where: { badgeId },
-    });
-    await prisma.badgeDefinition.delete({
+    // await prisma.participantBadge.updateMany({
+    //   where: { badgeId },
+    //   data: {
+    //     deletedAt: new Date(),
+    //   }
+    // });
+    await prisma.badgeDefinition.update({
       where: { id: badgeId },
+      data: {
+        deletedAt: new Date(),
+      }
     });
 
     return NextResponse.json({ ok: true });

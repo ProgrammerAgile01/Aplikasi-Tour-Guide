@@ -37,7 +37,7 @@ export async function POST(req: Request, ctx: { params: { id?: string } }) {
       include: { trip: true },
     });
 
-    if (!announcement) {
+    if (!announcement || announcement.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Pengumuman tidak ditemukan" },
         { status: 404 }
@@ -56,7 +56,7 @@ export async function POST(req: Request, ctx: { params: { id?: string } }) {
 
     // Ambil semua peserta trip
     const participants = await prisma.participant.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
     });
 
     if (participants.length === 0) {

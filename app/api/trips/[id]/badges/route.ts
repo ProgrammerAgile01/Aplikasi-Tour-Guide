@@ -57,7 +57,7 @@ export async function GET(req: Request, { params }: { params: any }) {
     const participantId = tripInfo.participantId;
 
     const defs = await prisma.badgeDefinition.findMany({
-      where: { tripId, isActive: true },
+      where: { tripId, isActive: true, deletedAt: null },
       orderBy: { createdAt: "asc" },
     });
 

@@ -38,10 +38,10 @@ export async function GET(req: Request) {
     // pastikan sesi milik trip tsb
     const session = await prisma.schedule.findUnique({
       where: { id: sessionId },
-      select: { tripId: true, title: true },
+      select: { tripId: true, title: true, deletedAt: true },
     });
 
-    if (!session || session.tripId !== tripId) {
+    if (!session || session.tripId !== tripId || session.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Sesi tidak valid untuk trip ini" },
         { status: 400 }
@@ -55,6 +55,7 @@ export async function GET(req: Request) {
         attendances: {
           none: { sessionId },
         },
+        deletedAt: null
       },
       orderBy: { name: "asc" },
       select: {

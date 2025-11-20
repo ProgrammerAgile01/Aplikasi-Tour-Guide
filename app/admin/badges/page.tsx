@@ -551,9 +551,7 @@ export default function AdminBadgesPage() {
                                     <span className="font-semibold">
                                       {b.name}
                                     </span>{" "}
-                                    akan dihapus dan tidak bisa dikembalikan.
-                                    Data pencapaian peserta terkait badge ini
-                                    juga akan ikut dihapus.
+                                    Badge akan dipindahkan ke sampah dan tidak terhapus permanen
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

@@ -18,10 +18,10 @@ export async function GET(
 
   const trip = await prisma.trip.findUnique({
     where: { id },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, deletedAt: true },
   });
 
-  if (!trip) {
+  if (!trip || trip.deletedAt) {
     return NextResponse.json(
       { ok: false, message: "Trip tidak ditemukan." },
       { status: 404 }

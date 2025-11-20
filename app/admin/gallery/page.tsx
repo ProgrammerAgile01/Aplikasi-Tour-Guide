@@ -1143,7 +1143,7 @@ export default function AdminGalleryPage() {
               ?
             </p>
             <p className="mt-1 text-gray-500 text-xs">
-              Tindakan ini tidak dapat dibatalkan.
+              Foto ini akan dipindahkan ke sampah.
             </p>
           </div>
           <DialogFooter className="mt-6 flex justify-end gap-2">

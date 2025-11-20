@@ -83,8 +83,11 @@ export async function DELETE(req: Request, { params }: IdParams) {
       );
     }
 
-    await prisma.gallery.delete({
+    await prisma.gallery.update({
       where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
 
     return NextResponse.json({ ok: true });

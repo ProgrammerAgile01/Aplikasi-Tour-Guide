@@ -21,6 +21,7 @@ import {
   Settings,
   Camera,
   Award,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -54,6 +55,7 @@ export default function AdminLayout({
     { name: "Galeri", path: "/admin/gallery", icon: Camera },
     { name: "Panel WhatsApp", path: "/admin/whatsapp-panel", icon: Phone },
     { name: "Pengaturan", path: "/admin/settings", icon: Settings },
+    { name: "Sampah", path: "/admin/trash", icon: Trash2 },
   ];
 
   return (

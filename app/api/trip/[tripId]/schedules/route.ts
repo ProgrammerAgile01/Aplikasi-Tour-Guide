@@ -101,7 +101,7 @@ export async function GET(
 
     // ==== ambil jadwal ====
     const rows = await prisma.schedule.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       orderBy: [{ day: "asc" }, { timeText: "asc" }],
     });
 

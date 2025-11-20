@@ -43,6 +43,7 @@ export async function GET(req: Request, { params }: { params: any }) {
         role: true,
         isActive: true,
         createdAt: true,
+        deletedAt: true,
         userTrips: {
           select: {
             roleOnTrip: true,
@@ -52,7 +53,7 @@ export async function GET(req: Request, { params }: { params: any }) {
       },
     });
 
-    if (!item)
+    if (!item || item.deletedAt)
       return NextResponse.json(
         { ok: false, message: "User not found" },
         { status: 404 }
@@ -115,7 +116,12 @@ export async function DELETE(req: Request, { params }: { params: any }) {
         { status: 400 }
       );
 
-    await prisma.user.delete({ where: { id } });
+    await prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("DELETE /api/users/[id] error", err);

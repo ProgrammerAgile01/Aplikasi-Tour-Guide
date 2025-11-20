@@ -41,9 +41,9 @@ export async function GET(req: Request) {
       );
     }
 
-    // ⬇⬇⬇ sekarang include session juga
+    // sekarang include session juga
     const feedbacks = await prisma.feedback.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       include: {
         participant: {
           select: {

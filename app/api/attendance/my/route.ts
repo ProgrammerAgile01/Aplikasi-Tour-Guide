@@ -62,6 +62,7 @@ export async function GET(req: Request) {
       const participant = await prisma.participant.findFirst({
         where: {
           tripId,
+          deletedAt: null,
           OR: [
             userUsername ? { loginUsername: userUsername } : undefined,
             userWhatsapp ? { whatsapp: userWhatsapp } : undefined,

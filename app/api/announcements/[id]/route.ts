@@ -26,7 +26,7 @@ export async function GET(
   }
   try {
     const a = await prisma.announcement.findUnique({ where: { id } });
-    if (!a)
+    if (!a || a.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Tidak ditemukan." },
         { status: 404 }
@@ -103,7 +103,12 @@ export async function DELETE(
     );
   }
   try {
-    await prisma.announcement.delete({ where: { id } });
+    await prisma.announcement.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     if (e?.code === "P2025") {

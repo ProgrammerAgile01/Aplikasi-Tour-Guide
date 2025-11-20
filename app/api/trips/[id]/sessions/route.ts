@@ -36,14 +36,14 @@ export async function GET(req: Request, { params }: { params: any }) {
 
     // Pastikan trip ada (opsional)
     const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-    if (!trip)
+    if (!trip || trip.deletedAt)
       return NextResponse.json(
         { ok: false, message: "Trip not found" },
         { status: 404 }
       );
 
     const items = await prisma.schedule.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       orderBy: [{ day: "asc" }, { timeText: "asc" }],
       select: {
         id: true,

@@ -62,6 +62,7 @@ async function resolveParticipantIdForSession(
     where: {
       tripId,
       loginUsername: username,
+      deletedAt: null
     },
     select: { id: true },
   });
@@ -133,7 +134,7 @@ export async function POST(req: Request, ctx: { params: any }) {
 
     // validasi sessionId milik trip ini
     const session = await prisma.schedule.findFirst({
-      where: { id: sessionId, tripId },
+      where: { id: sessionId, tripId, deletedAt: null },
       select: { id: true },
     });
 
@@ -248,7 +249,7 @@ export async function GET(req: Request, ctx: { params: any }) {
 
       // Ambil semua jadwal trip ini → untuk dropdown
       const sessions = await prisma.schedule.findMany({
-        where: { tripId },
+        where: { tripId, deletedAt: null },
         select: {
           id: true,
           day: true,
@@ -298,6 +299,10 @@ export async function GET(req: Request, ctx: { params: any }) {
             },
           },
         });
+
+        if (feedback?.deletedAt) {
+          feedback = null;
+        }
       }
 
       return NextResponse.json(
@@ -314,7 +319,7 @@ export async function GET(req: Request, ctx: { params: any }) {
 
     // scope = all → daftar semua feedback (bisa dipakai admin)
     const feedbacks = await prisma.feedback.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       include: {
         participant: {
           select: {

@@ -29,7 +29,7 @@ export async function GET(req: Request) {
       },
     });
 
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan" },
         { status: 404 }

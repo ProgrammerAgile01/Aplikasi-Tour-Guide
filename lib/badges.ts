@@ -18,6 +18,7 @@ export async function checkBadgesAfterCheckin(opts: {
       conditionType: BadgeConditionType.CHECKIN_SESSION,
       sessionId,
       isActive: true,
+      deletedAt: null
     },
   });
 
@@ -64,6 +65,7 @@ export async function checkBadgesAfterGalleryUpload(opts: {
       conditionType: BadgeConditionType.GALLERY_UPLOAD_SESSION,
       sessionId,
       isActive: true,
+      deletedAt: null
     },
   });
 
@@ -75,6 +77,7 @@ export async function checkBadgesAfterGalleryUpload(opts: {
       sessionId,
       participantId,
       status: "APPROVED", // kalau mau hitung semua, hilangkan filter ini
+      deletedAt: null
     },
   });
 
@@ -118,12 +121,13 @@ export async function checkBadgesAfterAttendanceSummary(opts: {
       tripId,
       conditionType: BadgeConditionType.COMPLETE_ALL_SESSIONS,
       isActive: true,
+      deletedAt: null
     },
   });
 
   if (!defs.length) return [];
 
-  const totalSessions = await prisma.schedule.count({ where: { tripId } });
+  const totalSessions = await prisma.schedule.count({ where: { tripId, deletedAt: null } });
   if (totalSessions === 0) return [];
 
   const attendedSessions = await prisma.attendance.count({

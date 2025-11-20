@@ -15,11 +15,11 @@ export async function GET(req: Request) {
           where: { id: tripIdFromQuery },
         })
       : await prisma.trip.findFirst({
-          where: { status: "ongoing" },
+          where: { status: "ongoing", deletedAt: null },
           orderBy: { startDate: "desc" },
         });
 
-    if (!trip) {
+    if (!trip || trip.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Trip tidak ditemukan" },
         { status: 404 }
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 
     // 3. Ambil semua schedule untuk grouping ke daily attendance
     const schedules = await prisma.schedule.findMany({
-      where: { tripId: trip.id },
+      where: { tripId: trip.id, deletedAt: null },
       select: {
         id: true,
         day: true,

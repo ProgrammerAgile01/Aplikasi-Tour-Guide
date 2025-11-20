@@ -59,7 +59,7 @@ export async function GET(req: Request, { params }: { params: any }) {
 
     // Foto APPROVED => publik
     const approved = await prisma.gallery.findMany({
-      where: { tripId, status: "APPROVED" },
+      where: { tripId, status: "APPROVED", deletedAt: null },
       orderBy: { createdAt: "desc" },
       include: { participant: true, session: true },
     });
@@ -72,6 +72,7 @@ export async function GET(req: Request, { params }: { params: any }) {
           tripId,
           participantId: currentParticipantId,
           status: "PENDING",
+          deletedAt: null
         },
         include: { participant: true, session: true },
       });

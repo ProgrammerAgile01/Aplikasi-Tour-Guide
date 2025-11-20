@@ -22,6 +22,9 @@ export async function GET(req: Request) {
     ensureAdmin(payload);
 
     const trips = await prisma.trip.findMany({
+      where: {
+        deletedAt: null,
+      },
       orderBy: { startDate: "desc" },
       select: {
         id: true,

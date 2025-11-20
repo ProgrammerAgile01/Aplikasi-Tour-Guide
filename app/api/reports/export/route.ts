@@ -39,10 +39,10 @@ type PhotoStatRow = {
 async function buildReportData(tripId: string) {
   const trip = await prisma.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, deletedAt: true },
   });
 
-  if (!trip) throw new Error("Trip tidak ditemukan");
+  if (!trip || trip.deletedAt) throw new Error("Trip tidak ditemukan");
 
   const [totalParticipants, schedules, attendances, galleries] =
     await Promise.all([

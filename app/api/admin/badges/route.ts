@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     }
 
     const defs = await prisma.badgeDefinition.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       include: {
         session: {
           select: { id: true, title: true },

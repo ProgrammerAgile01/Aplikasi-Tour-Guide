@@ -31,7 +31,7 @@ async function resolveTripId(raw: string) {
   );
 
   const direct = await prisma.trip.findFirst({
-    where: { id: { in: candidates } },
+    where: { id: { in: candidates }, deletedAt: null },
     select: { id: true },
   });
   if (direct) return direct.id;
@@ -39,7 +39,7 @@ async function resolveTripId(raw: string) {
   // 2) fallback: cari trip yang id-nya mengandung / berakhiran base
   const fuzzy = await prisma.trip.findFirst({
     where: {
-      OR: [{ id: { endsWith: base } }, { id: { contains: base } }],
+      OR: [{ id: { endsWith: base } }, { id: { contains: base } }], deletedAt: null
     },
     orderBy: { createdAt: "desc" }, // kalau ada banyak, ambil yang terbaru
     select: { id: true },

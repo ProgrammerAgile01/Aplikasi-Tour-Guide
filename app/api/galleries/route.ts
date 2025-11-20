@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     const { tripId } = parsed.data;
 
     const rows = await prisma.gallery.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       orderBy: { createdAt: "desc" },
       include: {
         participant: true,
@@ -79,10 +79,10 @@ export async function POST(req: Request) {
     // Ambil tripId dari session/jadwal
     const schedule = await prisma.schedule.findUnique({
       where: { id: data.sessionId },
-      select: { tripId: true },
+      select: { tripId: true, deletedAt: true },
     });
 
-    if (!schedule) {
+    if (!schedule || schedule.deletedAt) {
       return NextResponse.json(
         { ok: false, message: "Sesi / jadwal tidak ditemukan." },
         { status: 404 }
