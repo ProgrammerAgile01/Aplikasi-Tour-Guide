@@ -248,7 +248,7 @@ export default function FeedbackPage() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex flex-col flex-wrap gap-1">
             <span className="text-sm font-semibold text-foreground">
-              Pilih Sesi yang Ingin Diulas
+              Pilih Agenda yang Ingin Diulas
             </span>
           </div>
 
@@ -261,7 +261,7 @@ export default function FeedbackPage() {
               <SelectTrigger>
                 <SelectValue
                   placeholder={
-                    isLoadingInitial ? "Memuat sesi..." : "Pilih sesi"
+                    isLoadingInitial ? "Memuat agenda..." : "Pilih agenda"
                   }
                 />
               </SelectTrigger>
@@ -281,7 +281,7 @@ export default function FeedbackPage() {
 
         {selectedIsLast && (
           <div className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium">
-            Sesi terakhir Anda hadir 🎯
+            Agenda terakhir Anda hadir 🎯
           </div>
         )}
       </Card>
@@ -290,12 +290,12 @@ export default function FeedbackPage() {
       <Card className="p-6 border border-border space-y-4">
         <div>
           <label className="block text-sm font-semibold text-foreground mb-3">
-            Bagaimana pengalaman Anda pada sesi ini?
+            Bagaimana pengalaman Anda pada agenda ini?
           </label>
 
           {isLoadingInitial || isLoadingSessionChange ? (
             <div className="h-10 flex items-center justify-center text-xs text-muted-foreground">
-              Memuat data umpan balik sesi...
+              Memuat data umpan balik...
             </div>
           ) : (
             <div className="flex gap-3 justify-center">
@@ -344,7 +344,7 @@ export default function FeedbackPage() {
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ceritakan pengalaman Anda lebih detail pada sesi ini..."
+          placeholder="Ceritakan pengalaman Anda lebih detail pada agenda ini..."
           className="w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
           rows={5}
         />

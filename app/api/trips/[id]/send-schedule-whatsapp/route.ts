@@ -14,73 +14,53 @@ function formatIdDate(d: Date) {
   });
 }
 
-// Hanya bangun blok jadwal per hari (tanpa header Halo / Terima kasih)
-function buildScheduleBlock(
-  schedules: {
-    id: string;
-    day: number;
-    dateText: string;
-    timeText: string;
-    category?: string | null;
-    title: string;
-    location: string;
-    locationMapUrl?: string | null;
-    hints?: string[] | null;
-    description?: string | null;
-    isChanged: boolean;
-    isAdditional: boolean;
-  }[]
-) {
-  const byDay: Record<number, typeof schedules> = {};
-  for (const s of schedules) {
-    if (!byDay[s.day]) byDay[s.day] = [];
-    byDay[s.day].push(s);
-  }
-
+// Bangun teks untuk 1 jadwal saja (1 bubble)
+function buildScheduleItemBlock(s: {
+  id: string;
+  day: number;
+  dateText: string;
+  timeText: string;
+  category?: string | null;
+  title: string;
+  location: string;
+  locationMapUrl?: string | null;
+  hints?: string[] | null;
+  description?: string | null;
+  isChanged: boolean;
+  isAdditional: boolean;
+}) {
   const lines: string[] = [];
 
-  const sortedDays = Object.keys(byDay)
-    .map((d) => Number(d))
-    .sort((a, b) => a - b);
+  // Header hari + tanggal
+  lines.push(`🗓 Hari ${s.day}, ${s.dateText}`);
+  lines.push("");
 
-  for (const day of sortedDays) {
-    const daySchedules = byDay[day].sort((a, b) =>
-      a.timeText.localeCompare(b.timeText)
-    );
-    const dateText = daySchedules[0]?.dateText || "";
+  // Flag perubahan/tambahan
+  const flags: string[] = [];
+  if (s.isChanged) flags.push("PERUBAHAN");
+  if (s.isAdditional) flags.push("TAMBAHAN");
+  const flagLabel = flags.length ? ` [${flags.join(" & ")}]` : "";
 
-    lines.push(`🗓 Hari ${day}, ${dateText}`);
-    lines.push("");
+  // Judul & waktu
+  lines.push(`⏰ ${s.timeText}${flagLabel} — ${s.title}`);
+  lines.push(`📍 Lokasi: ${s.location}`);
 
-    for (const s of daySchedules) {
-      const flags: string[] = [];
-      if (s.isChanged) flags.push("PERUBAHAN");
-      if (s.isAdditional) flags.push("TAMBAHAN");
+  // Map (kalau ada)
+  if (s.locationMapUrl) {
+    lines.push(`🗺 Peta: ${s.locationMapUrl}`);
+  }
 
-      const flagLabel = flags.length ? ` [${flags.join(" & ")}]` : "";
-
-      lines.push(`⏰ ${s.timeText}${flagLabel} — ${s.title}`);
-      lines.push(`📍 Lokasi: ${s.location}`);
-
-      if (s.locationMapUrl) {
-        lines.push(`🗺 Peta: ${s.locationMapUrl}`);
-      }
-
-      if (s.hints && (s.hints as string[]).length > 0) {
-        lines.push("💡 Petunjuk:");
-        for (const h of s.hints as string[]) {
-          lines.push(` • ${h}`);
-        }
-      }
-
-      if (s.description) {
-        lines.push(`ℹ️ ${s.description}`);
-      }
-
-      lines.push("");
+  // Petunjuk
+  if (s.hints && s.hints.length > 0) {
+    lines.push("💡 Petunjuk:");
+    for (const h of s.hints) {
+      lines.push(` • ${h}`);
     }
+  }
 
-    lines.push("");
+  // Deskripsi
+  if (s.description) {
+    lines.push(`ℹ️ ${s.description}`);
   }
 
   return lines.join("\n");
@@ -145,40 +125,45 @@ export async function POST(req: Request, ctx: { params: { tripId?: string } }) {
     const tripStart = formatIdDate(trip.startDate as Date);
     const tripEnd = formatIdDate(trip.endDate as Date);
     const dateRange = `${tripStart} s/d ${tripEnd}`;
-    const scheduleBlock = buildScheduleBlock(
-      schedules as any // tipe dari prisma sudah compatible
-    );
 
-    // Ambil template SCHEDULE untuk trip ini
+    // PENTING: tetap pakai tipe template yang sama
     const templateType: WhatsAppTemplateType = "SCHEDULE";
     const { content: templateContent } = await getWhatsAppTemplateContent(
       tripId,
       templateType
     );
 
-    const messagesData = participants.map((p) => {
-      const content = applyTemplate(templateContent, {
-        participant_name: p.name,
-        trip_name: trip.name,
-        trip_location: trip.location ?? "",
-        trip_date_range: dateRange,
-        schedule_block: scheduleBlock,
-      });
+    // 1 peserta x N jadwal -> N pesan
+    const messagesData = participants.flatMap((p) =>
+      schedules.map((s) => {
+        // SEKARANG: schedule_block = 1 jadwal (bukan semua)
+        const scheduleBlock = buildScheduleItemBlock(s as any);
 
-      return {
-        tripId,
-        participantId: p.id,
-        to: p.whatsapp,
-        template: "TRIP_SCHEDULE_FULL",
-        content,
-        payload: {
-          type: "TRIP_SCHEDULE_FULL",
+        const content = applyTemplate(templateContent, {
+          participant_name: p.name,
+          trip_name: trip.name,
+          trip_location: trip.location ?? "",
+          trip_date_range: dateRange,
+          schedule_block: scheduleBlock,
+        });
+
+        return {
           tripId,
           participantId: p.id,
-        },
-        status: "PENDING" as const,
-      };
-    });
+          to: p.whatsapp,
+          // boleh tetap pakai nama template lama
+          template: "TRIP_SCHEDULE_FULL",
+          content,
+          payload: {
+            type: "TRIP_SCHEDULE_FULL",
+            tripId,
+            participantId: p.id,
+            scheduleId: s.id,
+          },
+          status: "PENDING" as const,
+        };
+      })
+    );
 
     await prisma.whatsAppMessage.createMany({
       data: messagesData,

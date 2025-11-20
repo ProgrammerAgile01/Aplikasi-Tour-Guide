@@ -60,6 +60,7 @@ export default function GalleryPage() {
   const [isUploading, setIsUploading] = useState(false);
 
   const [note, setNote] = useState("");
+  const [noteTouched, setNoteTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // sessions untuk dropdown
@@ -167,6 +168,43 @@ export default function GalleryPage() {
     }
   }, [sessions, lastSessionId, selectedSessionId]);
 
+  // Auto-generate caption dari sesi + ambience phrase (tanpa AI)
+  useEffect(() => {
+    if (!selectedSessionId || sessions.length === 0) return;
+
+    // kalau user sudah sempat edit caption sendiri, jangan ganggu lagi
+    if (noteTouched) return;
+
+    const s = sessions.find((x) => x.id === selectedSessionId);
+    if (!s) return;
+
+    // ambience phrase secara random, nuansa wisata & menyenangkan
+    const ambienceList = [
+      "Menikmati suasana yang indah",
+      "Momen penuh keceriaan",
+      "Petualangan seru hari ini",
+      "Menikmati panorama yang memanjakan mata",
+      "Momen wisata yang tak terlupakan",
+      "Perjalanan yang penuh cerita",
+      "Suasana yang begitu menenangkan",
+      "Menikmati hari dengan penuh kebahagiaan",
+      "Menikmati momen indah bersama teman perjalanan",
+    ];
+    const ambience =
+      ambienceList[Math.floor(Math.random() * ambienceList.length)];
+
+    const parts: string[] = [];
+    if (s.location) parts.push(s.location);
+
+    const context = parts.join(" • ");
+
+    const baseCaption = context
+      ? `${ambience} di ${context}`
+      : `${ambience} dalam agenda ${s.title}`;
+
+    setNote(baseCaption);
+  }, [selectedSessionId, sessions, noteTouched]);
+
   // Fetch gallery approved + polling
   useEffect(() => {
     if (!tripId) return;
@@ -263,6 +301,7 @@ export default function GalleryPage() {
 
       fileInput.value = "";
       setNote("");
+      setNoteTouched(false); // reset supaya upload berikutnya bisa auto-caption lagi
       setPreviewUrl(null);
     } catch (err: any) {
       console.error("Upload gallery error:", err);
@@ -312,7 +351,13 @@ export default function GalleryPage() {
             </label>
             <Select
               value={selectedSessionId}
-              onValueChange={setSelectedSessionId}
+              onValueChange={(value) => {
+                setSelectedSessionId(value);
+                // kalau ganti sesi, dan caption sebelumnya kosong → kita izinkan auto-caption baru
+                if (!note) {
+                  setNoteTouched(false);
+                }
+              }}
               disabled={sessionsLoading || sessions.length === 0}
             >
               <SelectTrigger className="w-full bg-white">
@@ -328,8 +373,7 @@ export default function GalleryPage() {
               </SelectTrigger>
               <SelectContent>
                 {sessions.map((s) => {
-                  const label = s.day && s.timeText ? `${s.title}` : s.title;
-
+                  const label = s.title;
                   const isAttended = attendedSet.has(s.id);
                   const isLast = lastSessionId === s.id;
 
@@ -408,7 +452,10 @@ export default function GalleryPage() {
               className="w-full mt-0 text-sm rounded-md border border-input bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Tambahkan catatan / caption"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => {
+                setNote(e.target.value);
+                setNoteTouched(true); // user mulai ngetik manual
+              }}
             />
           </div>
 

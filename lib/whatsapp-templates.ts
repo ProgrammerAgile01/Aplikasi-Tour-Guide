@@ -29,7 +29,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
       return [
         "Halo {{participant_name}}! 👋",
         "",
-        'Berikut jadwal lengkap untuk trip "{{trip_name}}".',
+        'Berikut jadwal untuk trip "{{trip_name}}".',
         "",
         "Periode: {{trip_date_range}}",
         "Lokasi: {{trip_location}}",

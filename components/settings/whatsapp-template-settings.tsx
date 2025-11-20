@@ -109,9 +109,7 @@ function buildPreview(
     schedule_block:
       "🗓 Hari 1, 12 Mei 2025\n\n" +
       "⏰ 08:00 — Penjemputan di Bandara\n" +
-      "📍 Lokasi: Komodo Airport\n\n" +
-      "⏰ 10:30 — Check-in Kapal & Welcome Drink\n" +
-      "📍 Lokasi: Pelabuhan Labuan Bajo\n",
+      "📍 Lokasi: Komodo Airport",
     login_username: "budi1234@trip.com",
     login_password: "rahasia123",
     login_url: "https://trip.agilestore.id/login",
