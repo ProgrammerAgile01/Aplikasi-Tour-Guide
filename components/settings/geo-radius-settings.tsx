@@ -84,59 +84,63 @@ export function GeoRadiusSettingsCard() {
       <CardHeader>
         <CardTitle>Pengaturan Radius Lokasi</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Radius ini berlaku untuk semua trip. Jarak dihitung dari titik lokasi
-          jadwal ke posisi peserta (GPS).
-        </p>
-
-        <div className="space-y-2">
-          <Label htmlFor="geoReminderRadius">
-            Radius Reminder Agenda (meter)
-          </Label>
-          <Input
-            id="geoReminderRadius"
-            type="number"
-            min={1}
-            disabled={loading || saving}
-            value={geoReminderRadius}
-            onChange={(e) =>
-              setGeoReminderRadius(
-                e.target.value === "" ? "" : Number(e.target.value)
-              )
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Contoh: 1000 = pengingat (notif + suara) muncul kalau peserta sudah
-            &lt; 1 km dari lokasi agenda.
+      <CardContent className="flex flex-col justify-between gap-18">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Radius ini berlaku untuk semua trip. Jarak dihitung dari titik
+            lokasi jadwal ke posisi peserta (GPS)
           </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="geoReminderRadius">
+              Radius Reminder Agenda (meter)
+            </Label>
+            <Input
+              id="geoReminderRadius"
+              type="number"
+              min={1}
+              disabled={loading || saving}
+              value={geoReminderRadius}
+              onChange={(e) =>
+                setGeoReminderRadius(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Contoh: 1000 = pengingat (notif + suara) muncul kalau peserta
+              sudah &lt; 1 km dari lokasi agenda
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="geoAttendanceRadius">
+              Radius Absensi Check-in (meter)
+            </Label>
+            <Input
+              id="geoAttendanceRadius"
+              type="number"
+              min={1}
+              disabled={loading || saving}
+              value={geoAttendanceRadius}
+              onChange={(e) =>
+                setGeoAttendanceRadius(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Contoh: 200 = peserta hanya bisa check-in kalau berada &lt; 200 m
+              dari titik lokasi jadwal
+            </p>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="geoAttendanceRadius">
-            Radius Absensi Check-in (meter)
-          </Label>
-          <Input
-            id="geoAttendanceRadius"
-            type="number"
-            min={1}
-            disabled={loading || saving}
-            value={geoAttendanceRadius}
-            onChange={(e) =>
-              setGeoAttendanceRadius(
-                e.target.value === "" ? "" : Number(e.target.value)
-              )
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Contoh: 200 = peserta hanya bisa check-in kalau berada &lt; 200 m
-            dari titik lokasi jadwal.
-          </p>
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={loading || saving}>
+            {saving ? "Menyimpan..." : "Simpan Pengaturan"}
+          </Button>
         </div>
-
-        <Button onClick={handleSave} disabled={loading || saving}>
-          {saving ? "Menyimpan..." : "Simpan Pengaturan"}
-        </Button>
       </CardContent>
     </Card>
   );

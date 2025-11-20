@@ -208,6 +208,9 @@ export default function SessionDetailPage() {
     title: string;
   } | null>(null);
 
+  const [attendanceGraceMinutes, setAttendanceGraceMinutes] =
+    useState<number>(15);
+
   // OPTIONAL: baca localStorage supaya UX cepat (akan dioverride DB)
   useEffect(() => {
     try {
@@ -354,12 +357,39 @@ export default function SessionDetailPage() {
     };
   }, [tripId, sessionId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/settings/attendance-window", {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.message || "Gagal memuat toleransi absen");
+        }
+
+        if (!cancelled) {
+          setAttendanceGraceMinutes(json.data.grace ?? 15);
+        }
+      } catch (e) {
+        console.error("[SessionDetail] Gagal memuat toleransi absen:", e);
+        // optional: kalau mau, bisa pakai toast di sini
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const mapHref = useMemo(() => (data ? buildMapHref(data) : null), [data]);
 
   const canCheckInNow = useMemo(() => {
     if (!data) return true; // atau false kalau mau default dikunci
-    return isNowWithinWindow(data.startAt, data.endAt);
-  }, [data?.startAt, data?.endAt]);
+    return isNowWithinWindow(data.startAt, data.endAt, attendanceGraceMinutes);
+  }, [data?.startAt, data?.endAt, attendanceGraceMinutes]);
 
   const handleViewLocation = () => {
     if (mapHref) window.open(mapHref, "_blank");

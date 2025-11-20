@@ -1,3 +1,4 @@
+import { AttendanceWindowSettingsCard } from "@/components/settings/attendance-window-settings";
 import { GeoRadiusSettingsCard } from "@/components/settings/geo-radius-settings";
 import { GlobalSettingsCard } from "@/components/settings/trip-info-settings";
 import { WhatsAppTemplateSettingsCard } from "@/components/settings/whatsapp-template-settings";
@@ -11,7 +12,7 @@ export default function AdminSettingsPage() {
             Pengaturan Aplikasi
           </h1>
           <p className="text-slate-600 mt-1">
-            Atur logo aplikasi, nama trip, dan deskripsi, dan template pesan
+            Atur logo aplikasi, nama trip, deskripsi, radius, toleransi absensi, dan template pesan
             WhatsApp
           </p>
         </div>
@@ -23,6 +24,9 @@ export default function AdminSettingsPage() {
         
         {/* Geo radius setting */}
         <GeoRadiusSettingsCard />
+
+        {/* Toleransi absen setting */}
+        <AttendanceWindowSettingsCard />
       </div>
 
       <div className="grid grid-cols-1 gap-6">

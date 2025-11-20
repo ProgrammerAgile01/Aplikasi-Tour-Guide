@@ -1,6 +1,7 @@
 export function isNowWithinWindow(
   startAt?: string | null,
-  endAt?: string | null
+  endAt?: string | null,
+  graceMinutes = 15
 ) {
   if (!startAt || !endAt) return true;
 
@@ -10,11 +11,10 @@ export function isNowWithinWindow(
 
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return true;
 
-  const graceBefore = 15 * 60_000;
-  const graceAfter = 15 * 60_000;
+  const grace = graceMinutes * 60_000;
 
   return (
-    now >= new Date(start.getTime() - graceBefore) &&
-    now <= new Date(end.getTime() + graceAfter)
+    now >= new Date(start.getTime() - grace) &&
+    now <= new Date(end.getTime() + grace)
   );
 }

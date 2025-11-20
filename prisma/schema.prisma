@@ -259,6 +259,7 @@ model Setting {
 
   geoReminderRadiusMeters   Int? @default(1000)
   geoAttendanceRadiusMeters Int? @default(200)
+  attendanceGraceMinutes Int? @default(15)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
