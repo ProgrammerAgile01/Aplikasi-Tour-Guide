@@ -60,6 +60,7 @@ interface Trip {
   id: string;
   name: string;
   status: string;
+  createdAt?: string;
 }
 
 export default function AdminReportsPage() {
@@ -156,7 +157,14 @@ export default function AdminReportsPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message || "Gagal memuat trips");
       }
-      setTrips(json.items ?? json.data ?? []);
+
+      const items: Trip[] = json.items ?? json.data ?? [];
+
+      setTrips(items);
+
+      if (!selectedTripId && items.length > 0) {
+        setSelectedTripId(items[0].id);
+      }
     } catch (err: any) {
       console.error(err);
       toast({
@@ -665,9 +673,9 @@ export default function AdminReportsPage() {
                     Export Laporan Lengkap
                   </h3>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    Laporan Excel dan PDF sudah menggunakan layout yang rapi. Anda dapat
-                    membagikan file ini ke klien atau internal tim sebagai
-                    dokumentasi resmi perjalanan.
+                    Laporan Excel dan PDF sudah menggunakan layout yang rapi.
+                    Anda dapat membagikan file ini ke klien atau internal tim
+                    sebagai dokumentasi resmi perjalanan.
                   </p>
                 </div>
               </div>

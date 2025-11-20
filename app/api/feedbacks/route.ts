@@ -1,4 +1,3 @@
-// app/api/feedbacks/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getSessionFromRequest } from "@/lib/auth";
@@ -16,7 +15,6 @@ type SessionPayload = {
 
 export async function GET(req: Request) {
   try {
-    // cek session
     const payload = (await getSessionFromRequest(req)) as SessionPayload | null;
     if (!payload) {
       return NextResponse.json(
@@ -33,7 +31,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // ambil tripId dari query
     const url = new URL(req.url);
     const tripId = url.searchParams.get("tripId");
 
@@ -44,7 +41,7 @@ export async function GET(req: Request) {
       );
     }
 
-    // ambil feedback + relasi participant
+    // ⬇⬇⬇ sekarang include session juga
     const feedbacks = await prisma.feedback.findMany({
       where: { tripId },
       include: {
@@ -55,11 +52,19 @@ export async function GET(req: Request) {
             whatsapp: true,
           },
         },
+        session: {
+          select: {
+            id: true,
+            day: true,
+            title: true,
+            dateText: true,
+            timeText: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // hitung statistik
     const total = feedbacks.length;
     const sumRating = feedbacks.reduce((sum, f) => sum + f.rating, 0);
     const avgRating = total > 0 ? sumRating / total : null;

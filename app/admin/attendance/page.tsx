@@ -132,7 +132,7 @@ export default function AdminAttendancePage() {
         );
         const j = await res.json();
         if (!res.ok || !j?.ok)
-          throw new Error(j?.message || "Gagal memuat sesi");
+          throw new Error(j?.message || "Gagal memuat agenda");
 
         const list: SessionRow[] = j.items ?? [];
         setSessions(list);
@@ -140,7 +140,7 @@ export default function AdminAttendancePage() {
       } catch (e: any) {
         toast({
           title: "Error",
-          description: e?.message || "Gagal memuat sesi",
+          description: e?.message || "Gagal memuat agenda",
           variant: "destructive",
         });
       }
@@ -228,9 +228,9 @@ export default function AdminAttendancePage() {
   const loadMissingParticipants = async () => {
     if (!selectedTripId || !selectedSessionId) {
       toast({
-        title: "Pilih Trip & Sesi",
+        title: "Pilih Trip & Agenda",
         description:
-          "Silakan pilih trip dan sesi terlebih dahulu sebelum melihat peserta yang belum presensi.",
+          "Silakan pilih trip dan agenda terlebih dahulu sebelum melihat peserta yang belum presensi.",
         variant: "destructive",
       });
       return;
@@ -262,8 +262,8 @@ export default function AdminAttendancePage() {
   const handleAdminCheckin = async (participantId: string) => {
     if (!selectedTripId || !selectedSessionId) {
       toast({
-        title: "Pilih Trip & Sesi",
-        description: "Trip dan sesi harus dipilih dulu.",
+        title: "Pilih Trip & Agenda",
+        description: "Trip dan agenda harus dipilih dulu.",
         variant: "destructive",
       });
       return;
@@ -359,7 +359,7 @@ export default function AdminAttendancePage() {
         </p>
       </div>
 
-      {/* QR Panel per Trip + Sesi */}
+      {/* QR Panel per Trip + Agenda */}
       <Card>
         <CardHeader>
           <CardTitle>QR Presensi Per Trip</CardTitle>
@@ -394,13 +394,13 @@ export default function AdminAttendancePage() {
             </div>
 
             <div>
-              <p className="text-xs text-slate-500 mb-1">Pilih Sesi</p>
+              <p className="text-xs text-slate-500 mb-1">Pilih Agenda</p>
               <Select
                 value={selectedSessionId}
                 onValueChange={setSelectedSessionId}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Pilih sesi" />
+                  <SelectValue placeholder="Pilih agenda" />
                 </SelectTrigger>
                 <SelectContent>
                   {sessions.map((s) => (
@@ -448,7 +448,7 @@ export default function AdminAttendancePage() {
             ) : (
               <p className="text-sm text-slate-500">
                 {selectedTripId
-                  ? "Pilih sesi terlebih dahulu"
+                  ? "Pilih agenda terlebih dahulu"
                   : "Pilih trip terlebih dahulu"}
               </p>
             )}
@@ -567,7 +567,7 @@ export default function AdminAttendancePage() {
                     Nama
                   </th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                    Sesi
+                    Agenda
                   </th>
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">
                     Lokasi
@@ -656,14 +656,14 @@ export default function AdminAttendancePage() {
           <DialogHeader>
             <DialogTitle>Peserta yang Belum Presensi</DialogTitle>
             <DialogDescription>
-              Daftar peserta trip yang belum melakukan presensi pada sesi yang
+              Daftar peserta trip yang belum melakukan presensi pada agenda yang
               dipilih. Admin dapat menandai hadir secara manual jika diperlukan.
             </DialogDescription>
           </DialogHeader>
 
           {(!selectedTripId || !selectedSessionId) && (
             <p className="text-sm text-red-500">
-              Pilih trip dan sesi terlebih dahulu.
+              Pilih trip dan agenda terlebih dahulu.
             </p>
           )}
 
@@ -675,7 +675,7 @@ export default function AdminAttendancePage() {
                 </p>
               ) : missingParticipants.length === 0 ? (
                 <p className="text-sm text-green-600">
-                  Semua peserta sudah melakukan presensi untuk sesi ini. 🎉
+                  Semua peserta sudah melakukan presensi untuk agenda ini 🎉
                 </p>
               ) : (
                 <div className="max-h-[360px] overflow-y-auto border rounded-md">

@@ -19,6 +19,7 @@ const FeedbackBody = z.object({
   rating: z.coerce.number().int().min(1).max(5),
   notes: z.string().trim().max(2000).optional().nullable(),
   participantId: z.string().optional().nullable(),
+  sessionId: z.string().min(1, "sessionId wajib").optional().nullable(),
 });
 
 /* -----------------------------
@@ -68,10 +69,10 @@ async function resolveParticipantIdForSession(
   return participant?.id ?? null;
 }
 
-/* -----------------------------
- *  POST /api/trips/[tripId]/feedback
- *  - create / update (upsert) feedback peserta
- * ----------------------------- */
+/* ======================
+ * POST: create/update per session
+ * ====================== */
+
 export async function POST(req: Request, ctx: { params: any }) {
   try {
     const payload = (await getSessionFromRequest(req)) as SessionPayload | null;
@@ -115,7 +116,33 @@ export async function POST(req: Request, ctx: { params: any }) {
       );
     }
 
-    const { rating, notes, participantId: participantIdFromBody } = parsed.data;
+    const {
+      rating,
+      notes,
+      participantId: participantIdFromBody,
+      sessionId: sessionIdFromBody,
+    } = parsed.data;
+
+    const sessionId = sessionIdFromBody ?? null;
+    if (!sessionId) {
+      return NextResponse.json(
+        { ok: false, message: "sessionId wajib diisi" },
+        { status: 400 }
+      );
+    }
+
+    // validasi sessionId milik trip ini
+    const session = await prisma.schedule.findFirst({
+      where: { id: sessionId, tripId },
+      select: { id: true },
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, message: "Sesi/jadwal tidak valid untuk trip ini" },
+        { status: 400 }
+      );
+    }
 
     // tentukan participantId final
     let participantId: string | null = participantIdFromBody ?? null;
@@ -126,14 +153,13 @@ export async function POST(req: Request, ctx: { params: any }) {
     let feedback;
 
     if (participantId) {
-      // Peserta jelas → pakai upsert berdasarkan unique [tripId, participantId]
-      // Pastikan di schema ada:
-      // @@unique([tripId, participantId])
+      // peserta jelas → 1 feedback per sesi
       feedback = await prisma.feedback.upsert({
         where: {
-          tripId_participantId: {
+          tripId_participantId_sessionId: {
             tripId,
             participantId,
+            sessionId,
           },
         },
         update: {
@@ -143,15 +169,17 @@ export async function POST(req: Request, ctx: { params: any }) {
         create: {
           tripId,
           participantId,
+          sessionId,
           rating,
           notes: notes ?? null,
         },
       });
     } else {
-      // Anonymous: tiap submit bikin record baru
+      // anonymous: 1 submit = 1 record, per sesi
       feedback = await prisma.feedback.create({
         data: {
           tripId,
+          sessionId,
           rating,
           notes: notes ?? null,
         },
@@ -218,23 +246,73 @@ export async function GET(req: Request, ctx: { params: any }) {
         tripId
       );
 
-      if (!participantId) {
-        return NextResponse.json({ ok: true, data: null }, { status: 200 });
-      }
-
-      const feedback = await prisma.feedback.findUnique({
-        where: {
-          tripId_participantId: {
-            tripId,
-            participantId,
-          },
+      // Ambil semua jadwal trip ini → untuk dropdown
+      const sessions = await prisma.schedule.findMany({
+        where: { tripId },
+        select: {
+          id: true,
+          day: true,
+          title: true,
+          dateText: true,
+          timeText: true,
         },
+        orderBy: [{ day: "asc" }, { timeText: "asc" }],
       });
 
-      return NextResponse.json({ ok: true, data: feedback }, { status: 200 });
+      if (!participantId) {
+        // belum mapping ke participant → tetep kirim daftar sessions
+        return NextResponse.json(
+          {
+            ok: true,
+            data: null,
+            sessions,
+            lastSessionId: null,
+            currentSessionId: null,
+          },
+          { status: 200 }
+        );
+      }
+
+      // cari sesi terakhir dihadiri (Attendance)
+      const lastAttendance = await prisma.attendance.findFirst({
+        where: {
+          tripId,
+          participantId,
+        },
+        select: { sessionId: true },
+        orderBy: { checkedAt: "desc" },
+      });
+
+      const sessionIdParam = url.searchParams.get("sessionId");
+      const targetSessionId =
+        sessionIdParam || lastAttendance?.sessionId || sessions[0]?.id || null;
+
+      let feedback = null;
+      if (targetSessionId) {
+        feedback = await prisma.feedback.findUnique({
+          where: {
+            tripId_participantId_sessionId: {
+              tripId,
+              participantId,
+              sessionId: targetSessionId,
+            },
+          },
+        });
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          data: feedback,
+          sessions,
+          lastSessionId: lastAttendance?.sessionId ?? null,
+          currentSessionId: targetSessionId,
+        },
+        { status: 200 }
+      );
     }
 
-    // scope = all → seperti sebelumnya
+    // scope = all → daftar semua feedback (bisa dipakai admin)
     const feedbacks = await prisma.feedback.findMany({
       where: { tripId },
       include: {
@@ -244,6 +322,15 @@ export async function GET(req: Request, ctx: { params: any }) {
             name: true,
             whatsapp: true,
             loginUsername: true,
+          },
+        },
+        session: {
+          select: {
+            id: true,
+            day: true,
+            title: true,
+            dateText: true,
+            timeText: true,
           },
         },
       },

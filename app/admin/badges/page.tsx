@@ -72,6 +72,7 @@ interface TripOption {
   id: string;
   name: string;
   status: string;
+  startDate?: string;
 }
 
 const ICON_OPTIONS = [
@@ -145,7 +146,22 @@ export default function AdminBadgesPage() {
       const res = await fetch("/api/admin/trips", { cache: "no-store" });
       const data = await res.json();
       if (!data.ok) throw new Error(data.message ?? "Gagal memuat trip");
-      setTrips(data.items);
+
+      const items: TripOption[] = data.items ?? data.data ?? [];
+
+      // Kalau mau pakai urutan startDate terbaru:
+      const sorted = [...items].sort((a, b) => {
+        const da = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const db = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return db - da; // trip dengan startDate paling baru di atas
+      });
+
+      setTrips(sorted);
+
+      // AUTO SELECT: kalau belum ada trip terpilih dan ada data, pilih yang paling baru
+      if (!selectedTripId && sorted.length > 0) {
+        setSelectedTripId(sorted[0].id);
+      }
     } catch (e: any) {
       console.error(e);
       toast({
@@ -378,9 +394,11 @@ export default function AdminBadgesPage() {
       {/* Header + trip selector */}
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Manage Badges</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            Atur Badges (Pencapaian)
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Atur misi / pencapaian untuk peserta, per trip.
+            Atur misi / pencapaian untuk peserta per trip
           </p>
         </div>
         <div className="w-full md:w-72">
@@ -402,7 +420,18 @@ export default function AdminBadgesPage() {
             <SelectContent>
               {trips.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
-                  {t.name} ({t.status})
+                  <div className="flex items-center gap-2">
+                    <span>{t.name}</span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        t.status === "ongoing"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {t.status === "ongoing" ? "Aktif" : "Selesai"}
+                    </span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -433,8 +462,8 @@ export default function AdminBadgesPage() {
               <p className="text-sm text-muted-foreground">Memuat...</p>
             ) : badges.length === 0 ? (
               <div className="text-sm text-muted-foreground flex flex-col gap-2">
-                <p>Belum ada badge untuk trip ini.</p>
-                <p>Silakan buat badge terlebih dahulu.</p>
+                <p>Belum ada badge untuk trip ini</p>
+                <p>Silakan buat badge terlebih dahulu</p>
               </div>
             ) : (
               <div className="overflow-x-auto">

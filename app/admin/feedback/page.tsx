@@ -19,6 +19,8 @@ interface Trip {
   id: string;
   name: string;
   status: string;
+  startDate: string;
+  createdAt?: string;
 }
 
 interface ParticipantLite {
@@ -35,6 +37,14 @@ interface FeedbackItem {
   notes: string | null;
   createdAt: string;
   participant?: ParticipantLite | null;
+
+  session?: {
+    id: string;
+    day: number;
+    title: string;
+    dateText: string;
+    timeText: string;
+  } | null;
 }
 
 interface FeedbackStats {
@@ -68,7 +78,14 @@ export default function AdminFeedbackPage() {
       if (!res.ok || !json?.ok) {
         throw new Error(json?.message || "Gagal memuat trips");
       }
-      setTrips(json.items ?? json.data ?? []);
+
+      const items: Trip[] = json.items ?? json.data ?? [];
+
+      setTrips(items);
+
+      if (!selectedTripId && items.length > 0) {
+        setSelectedTripId(items[0].id);
+      }
     } catch (err: any) {
       console.error(err);
       toast({
@@ -364,6 +381,15 @@ export default function AdminFeedbackPage() {
                               </span>
                             )}
                           </p>
+                          {fb.session && (
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Agenda: Hari {fb.session.day} •{" "}
+                              {fb.session.timeText} •{" "}
+                              <span className="font-medium">
+                                {fb.session.title}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <div className="text-right">
                           {renderStars(fb.rating)}
@@ -394,6 +420,9 @@ export default function AdminFeedbackPage() {
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Peserta
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Agenda
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Rating
@@ -435,6 +464,23 @@ export default function AdminFeedbackPage() {
                               </span>
                             )}
                           </td>
+                          <td className="py-3 px-4 text-slate-700 text-sm">
+                            {fb.session ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {fb.session.title}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                  Hari {fb.session.day} • {fb.session.timeText}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">
+                                Tidak ada data Agenda
+                              </span>
+                            )}
+                          </td>
+
                           <td className="py-3 px-4 text-slate-700">
                             <div className="flex items-center gap-2">
                               {renderStars(fb.rating)}

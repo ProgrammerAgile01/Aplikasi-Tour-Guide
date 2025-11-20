@@ -39,6 +39,7 @@ interface Trip {
   id: string;
   name: string;
   status: string;
+  createdAt?: string;
 }
 
 interface Participant {
@@ -172,7 +173,14 @@ export default function AdminGalleryPage() {
       const json = await res.json();
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat trips");
-      setTrips(json.items ?? json.data ?? []);
+
+      const items: Trip[] = json.items ?? json.data ?? [];
+
+      setTrips(items);
+
+      if (!selectedTripId && items.length > 0) {
+        setSelectedTripId(items[0].id);
+      }
     } catch (err: any) {
       console.error(err);
       toast({
@@ -789,7 +797,7 @@ export default function AdminGalleryPage() {
                         Peserta
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Sesi
+                        Agenda
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Lokasi
