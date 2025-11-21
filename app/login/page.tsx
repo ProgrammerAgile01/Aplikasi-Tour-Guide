@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [tripName, setTripName] = useState<string>("Trip Komodo Executive");
+  const [tripName, setTripName] = useState<string>("Teman Wisata");
   const [description, setDescription] = useState<string>(
     "Sistem Pemandu Wisata Eksekutif"
   );
@@ -146,8 +146,12 @@ export default function LoginPage() {
                   className="w-16 h-16 object-contain"
                 />
               ) : (
-                <Compass className="w-16 h-16 text-blue-700" />
-                )}
+                <img
+                  src="/logo-temanwisata-bg-clear.png"
+                  alt="Teman Wisata"
+                  className="w-16 h-16 object-contain"
+                />
+              )}
             </div>
           </div>
           <div>
