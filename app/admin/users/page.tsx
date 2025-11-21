@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,24 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface UserTripRow {
+  roleOnTrip?: string | null;
+  trip?: {
+    id: string;
+    name: string;
+    status: string;
+    startDate: string;
+    endDate: string;
+  } | null;
+}
 
 interface UserRow {
   id: string;
@@ -23,8 +41,15 @@ interface UserRow {
   role: string;
   isActive: boolean;
   createdAt?: string;
-  userTrips?: any[];
+  userTrips?: UserTripRow[];
 }
+
+interface TripOption {
+  id: string;
+  name: string;
+}
+
+const pageSize = 15; // jumlah user per halaman
 
 export default function AdminUsersPage() {
   const [q, setQ] = useState("");
@@ -35,6 +60,12 @@ export default function AdminUsersPage() {
   const [deleting, setDeleting] = useState<UserRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // filter trip
+  const [tripFilter, setTripFilter] = useState<string>("ALL");
+
+  // pagination
+  const [page, setPage] = useState(1);
+
   useEffect(() => {
     loadUsers();
   }, []);
@@ -42,16 +73,20 @@ export default function AdminUsersPage() {
   async function loadUsers() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/users?q=${encodeURIComponent(q)}`);
+      // ambil semua user, tanpa parameter q (search dilakukan di client)
+      const res = await fetch(`/api/users?take=200`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat users");
       setUsers(json.items ?? []);
+      setPage(1); // reset ke halaman pertama setiap reload
     } catch (err: any) {
       console.error(err);
       toast({
         title: "Error",
-        description: err.message || "Gagal memuat pengguna",
+        description: err?.message || "Gagal memuat pengguna",
         variant: "destructive",
       });
     } finally {
@@ -84,7 +119,7 @@ export default function AdminUsersPage() {
       console.error(err);
       toast({
         title: "Error",
-        description: err.message || "Gagal update pengguna",
+        description: err?.message || "Gagal update pengguna",
         variant: "destructive",
       });
     }
@@ -116,13 +151,63 @@ export default function AdminUsersPage() {
       console.error(err);
       toast({
         title: "Error",
-        description: err.message || "Gagal menghapus pengguna",
+        description: err?.message || "Gagal menghapus pengguna",
         variant: "destructive",
       });
     } finally {
       setIsDeleting(false);
     }
   }
+
+  // reset halaman kalau filter atau search berubah
+  useEffect(() => {
+    setPage(1);
+  }, [q, tripFilter]);
+
+  // Kumpulkan list trip unik dari relasi userTrips → untuk dropdown filter
+  const tripOptions: TripOption[] = useMemo(() => {
+    const map = new Map<string, string>();
+    users.forEach((u) => {
+      u.userTrips?.forEach((ut) => {
+        if (ut.trip?.id && ut.trip?.name) {
+          map.set(ut.trip.id, ut.trip.name);
+        }
+      });
+    });
+
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [users]);
+
+  // Filter user berdasarkan q dan tripFilter
+  const filteredUsers = useMemo(() => {
+    const term = q.trim().toLowerCase();
+
+    return users.filter((u) => {
+      // filter berdasarkan teks pencarian
+      const matchSearch = term
+        ? u.name?.toLowerCase().includes(term) ||
+          u.username?.toLowerCase().includes(term) ||
+          u.whatsapp?.toLowerCase().includes(term) ||
+          u.role?.toLowerCase().includes(term)
+        : true;
+
+      // filter berdasarkan trip
+      const matchTrip =
+        tripFilter === "ALL"
+          ? true
+          : (u.userTrips ?? []).some((ut) => ut.trip?.id === tripFilter);
+
+      return matchSearch && matchTrip;
+    });
+  }, [users, q, tripFilter]);
+
+  // pagination client-side
+  const totalFiltered = filteredUsers.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedUsers = filteredUsers.slice(start, end);
 
   return (
     <div className="p-6 space-y-6">
@@ -134,31 +219,70 @@ export default function AdminUsersPage() {
       </div>
 
       <Card>
-        <CardContent>
-          <div className="flex gap-3 items-center">
-            <Search className="text-slate-400" />
-            <Input
-              placeholder="Cari nama, username atau whatsapp..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            <Button onClick={loadUsers}>Cari</Button>
+        <CardContent className="space-y-3 pt-4">
+          <div className="flex flex-col md:flex-row gap-3 md:items-center">
+            <div className="flex flex-1 items-center gap-2">
+              <Search className="text-slate-400" />
+              <Input
+                placeholder="Cari nama, username, WhatsApp atau role..."
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600 whitespace-nowrap">
+                Filter Trip:
+              </span>
+              <Select
+                value={tripFilter}
+                onValueChange={(value) => setTripFilter(value)}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Pilih trip" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua trip</SelectItem>
+                  {tripOptions.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          <p className="text-xs text-slate-400">
+            Ketik untuk mencari, daftar akan difilter otomatis. Tombol
+            &quot;Muat ulang&quot; untuk refresh data dari server.
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Daftar Pengguna</CardTitle>
+          <div className="flex justify-between">
+            <CardTitle className="text-xl">Daftar Pengguna</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadUsers}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Muat ulang
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
                   <th className="py-2 px-3 text-left">Nama</th>
                   <th className="py-2 px-3 text-left">Username</th>
                   <th className="py-2 px-3 text-left">WhatsApp</th>
+                  <th className="py-2 px-3 text-left">Trip</th>
                   <th className="py-2 px-3 text-left">Role</th>
                   <th className="py-2 px-3 text-left">Aktif</th>
                   <th className="py-2 px-3 text-left">Aksi</th>
@@ -167,22 +291,45 @@ export default function AdminUsersPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-4 text-center">
+                    <td colSpan={7} className="py-4 text-center">
                       Memuat...
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : pagedUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-500">
-                      Belum ada pengguna
+                    <td colSpan={7} className="py-6 text-center text-slate-500">
+                      Tidak ada pengguna yang cocok dengan filter
                     </td>
                   </tr>
                 ) : (
-                  users.map((u) => (
+                  pagedUsers.map((u) => (
                     <tr key={u.id} className="border-b hover:bg-slate-50">
                       <td className="py-3 px-3">{u.name}</td>
                       <td className="py-3 px-3 text-slate-600">{u.username}</td>
                       <td className="py-3 px-3 text-slate-600">{u.whatsapp}</td>
+                      <td className="py-3 px-3">
+                        {u.userTrips && u.userTrips.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {u.userTrips.map((ut, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
+                              >
+                                {ut.trip?.name ?? "-"}
+                                {ut.roleOnTrip && (
+                                  <span className="ml-1 text-[10px] uppercase text-slate-400">
+                                    ({ut.roleOnTrip})
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">
+                            -
+                          </span>
+                        )}
+                      </td>
                       <td className="py-3 px-3">{u.role}</td>
                       <td className="py-3 px-3">
                         <Switch
@@ -196,7 +343,7 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openDelete(u)}
-                            className="text-red-600"
+                            className="text-red-600 hover:bg-red-600/10"
                           >
                             <Trash2 className="w-4 h-4" /> Hapus
                           </Button>
@@ -208,6 +355,45 @@ export default function AdminUsersPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {filteredUsers.length > 0 && (
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
+              <div>
+                Menampilkan{" "}
+                <span className="font-semibold">
+                  {start + 1}–{Math.min(end, filteredUsers.length)}
+                </span>{" "}
+                dari{" "}
+                <span className="font-semibold">{filteredUsers.length}</span>{" "}
+                pengguna
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  Sebelumnya
+                </Button>
+                <span>
+                  Halaman{" "}
+                  <span className="font-semibold">
+                    {safePage}/{totalPages}
+                  </span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -234,7 +420,7 @@ export default function AdminUsersPage() {
           <DialogFooter className="mt-6 flex justify-end gap-2">
             <Button
               variant="outline"
-              onClick={() => setDeleteOpen(false)}
+              onClick={cancelDelete}
               disabled={isDeleting}
             >
               Batal

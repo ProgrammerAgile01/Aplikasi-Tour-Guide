@@ -53,6 +53,8 @@ interface FeedbackStats {
   byRating: Record<number, number>;
 }
 
+const pageSize = 15; // jumlah feedback per halaman
+
 export default function AdminFeedbackPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>("");
@@ -64,6 +66,9 @@ export default function AdminFeedbackPage() {
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  // pagination state
+  const [page, setPage] = useState(1);
 
   // ───────────────── Trips ─────────────────
   useEffect(() => {
@@ -121,6 +126,7 @@ export default function AdminFeedbackPage() {
 
       setFeedbacks(json.items ?? json.data ?? []);
       setStats(json.stats ?? null);
+      setPage(1); // reset ke halaman pertama saat trip berganti / reload
     } catch (err: any) {
       console.error(err);
       toast({
@@ -132,6 +138,11 @@ export default function AdminFeedbackPage() {
       setLoadingFeedbacks(false);
     }
   }
+
+  // reset halaman kalau search berubah
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   // ───────────────── Filter di tabel ─────────────────
   const filteredFeedbacks = useMemo(() => {
@@ -145,6 +156,14 @@ export default function AdminFeedbackPage() {
       return name.includes(q) || notes.includes(q) || ratingStr.includes(q);
     });
   }, [feedbacks, searchQuery]);
+
+  // pagination client-side
+  const totalFiltered = filteredFeedbacks.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedFeedbacks = filteredFeedbacks.slice(start, end);
 
   const computedStats = useMemo(() => {
     if (stats) return stats;
@@ -359,12 +378,12 @@ export default function AdminFeedbackPage() {
                   <p className="py-4 text-sm text-slate-500">
                     Memuat umpan balik…
                   </p>
-                ) : filteredFeedbacks.length === 0 ? (
+                ) : pagedFeedbacks.length === 0 ? (
                   <p className="py-4 text-sm text-slate-500 text-center">
                     Belum ada umpan balik untuk trip ini.
                   </p>
                 ) : (
-                  filteredFeedbacks.map((fb) => (
+                  pagedFeedbacks.map((fb) => (
                     <div
                       key={fb.id}
                       className="border border-slate-200 rounded-lg p-4 space-y-2"
@@ -435,21 +454,21 @@ export default function AdminFeedbackPage() {
                   <tbody>
                     {loadingFeedbacks ? (
                       <tr>
-                        <td colSpan={4} className="py-4 px-4">
+                        <td colSpan={5} className="py-4 px-4">
                           Memuat umpan balik…
                         </td>
                       </tr>
-                    ) : filteredFeedbacks.length === 0 ? (
+                    ) : pagedFeedbacks.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="py-6 text-center text-slate-500"
                         >
                           Belum ada umpan balik untuk trip ini.
                         </td>
                       </tr>
                     ) : (
-                      filteredFeedbacks.map((fb) => (
+                      pagedFeedbacks.map((fb) => (
                         <tr
                           key={fb.id}
                           className="border-b border-slate-100 hover:bg-slate-50"
@@ -500,6 +519,49 @@ export default function AdminFeedbackPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination controls */}
+              {filteredFeedbacks.length > 0 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
+                  <div>
+                    Menampilkan{" "}
+                    <span className="font-semibold">
+                      {start + 1}–{Math.min(end, filteredFeedbacks.length)}
+                    </span>{" "}
+                    dari{" "}
+                    <span className="font-semibold">
+                      {filteredFeedbacks.length}
+                    </span>{" "}
+                    umpan balik
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage <= 1}
+                    >
+                      Sebelumnya
+                    </Button>
+                    <span>
+                      Halaman{" "}
+                      <span className="font-semibold">
+                        {safePage}/{totalPages}
+                      </span>
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={safePage >= totalPages}
+                    >
+                      Berikutnya
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>

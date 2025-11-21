@@ -59,6 +59,8 @@ interface MissingParticipant {
   totalCheckIns: number;
 }
 
+const pageSize = 15; // jumlah baris per halaman
+
 export default function AdminAttendancePage() {
   // ====== Trip & Session state for QR panel ======
   const [trips, setTrips] = useState<TripRow[]>([]);
@@ -76,6 +78,9 @@ export default function AdminAttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >([]);
+
+  // pagination state
+  const [page, setPage] = useState(1);
 
   // modal peserta belum presensi
   const [missingOpen, setMissingOpen] = useState(false);
@@ -148,7 +153,7 @@ export default function AdminAttendancePage() {
   }, [selectedTripId, toast]);
 
   /* ----------------------------------------------------------------
-   * 3. ISSUE QR TIAP 60 DETIK (JIKA TRIP & SESSI TERPILIH)
+   * 3. ISSUE QR TIAP 60 DETIK (JIKA TRIP & SESI TERPILIH)
    * ---------------------------------------------------------------- */
   useEffect(() => {
     let stop = false;
@@ -215,6 +220,7 @@ export default function AdminAttendancePage() {
         if (!res.ok || !j?.ok)
           throw new Error(j?.message || "Gagal memuat absensi");
         setAttendanceRecords(j.items || []);
+        setPage(1); // reset halaman tiap kali data dari server berubah
       } catch (e: any) {
         toast({
           title: "Error",
@@ -224,6 +230,11 @@ export default function AdminAttendancePage() {
       }
     })();
   }, [selectedTripId, filterMethod, toast]);
+
+  // reset page kalau filter/text berubah (supaya tidak nyangkut di halaman besar)
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, filterLocation]);
 
   const loadMissingParticipants = async () => {
     if (!selectedTripId || !selectedSessionId) {
@@ -303,6 +314,7 @@ export default function AdminAttendancePage() {
         const j2 = await res2.json();
         if (res2.ok && j2?.ok) {
           setAttendanceRecords(j2.items || []);
+          setPage(1);
         }
       } catch {
         // ignore
@@ -324,13 +336,14 @@ export default function AdminAttendancePage() {
     [attendanceRecords]
   );
 
+  // filter search + method + location
   const filteredRecords = attendanceRecords.filter((record) => {
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      record.participantName
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase()) ||
-      record.sessionTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      record.location.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      record.participantName.toLowerCase().includes(q) ||
+      record.sessionTitle.toLowerCase().includes(q) ||
+      record.location.toLowerCase().includes(q);
 
     const matchesMethod =
       filterMethod === "all" || record.method === filterMethod;
@@ -339,6 +352,14 @@ export default function AdminAttendancePage() {
 
     return matchesSearch && matchesMethod && matchesLocation;
   });
+
+  // pagination logic
+  const totalFiltered = filteredRecords.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedRecords = filteredRecords.slice(start, end);
 
   const stats = {
     total: filteredRecords.length,
@@ -584,7 +605,7 @@ export default function AdminAttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredRecords.map((record) => (
+                {pagedRecords.map((record) => (
                   <tr
                     key={record.id}
                     className="border-b border-slate-100 hover:bg-slate-50"
@@ -647,6 +668,45 @@ export default function AdminAttendancePage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination controls */}
+          {filteredRecords.length > 0 && (
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
+              <div>
+                Menampilkan{" "}
+                <span className="font-semibold">
+                  {start + 1}–{Math.min(end, filteredRecords.length)}
+                </span>{" "}
+                dari{" "}
+                <span className="font-semibold">{filteredRecords.length}</span>{" "}
+                check-in
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  Sebelumnya
+                </Button>
+                <span>
+                  Halaman{" "}
+                  <span className="font-semibold">
+                    {safePage}/{totalPages}
+                  </span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                >
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

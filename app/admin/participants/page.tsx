@@ -53,6 +53,8 @@ interface Trip {
   createdAt?: string;
 }
 
+const pageSize = 10; // jumlah peserta per halaman
+
 export default function AdminParticipantsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -68,6 +70,9 @@ export default function AdminParticipantsPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
+
+  // pagination state
+  const [page, setPage] = useState(1);
 
   // delete modal state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -87,10 +92,21 @@ export default function AdminParticipantsPage() {
   useEffect(() => {
     loadTrips();
   }, []);
+
   useEffect(() => {
-    if (selectedTripId) loadParticipants(selectedTripId);
-    else setParticipants([]);
+    if (selectedTripId) {
+      // setiap ganti trip, reset ke halaman 1
+      setPage(1);
+      loadParticipants(selectedTripId);
+    } else {
+      setParticipants([]);
+    }
   }, [selectedTripId]);
+
+  // kalau keyword search berubah, reset ke halaman 1
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   async function loadTrips() {
     setLoadingTrips(true);
@@ -123,7 +139,7 @@ export default function AdminParticipantsPage() {
     setLoadingParticipants(true);
     try {
       const res = await fetch(
-        `/api/participants?tripId=${encodeURIComponent(tripId)}`
+        `/api/participants?tripId=${encodeURIComponent(tripId)}&take=1000`
       );
       const json = await res.json();
       if (!res.ok || !json?.ok)
@@ -174,14 +190,31 @@ export default function AdminParticipantsPage() {
     return res.json();
   }
 
+  // filter global (search + trip)
   const filteredParticipants = participants.filter((p) => {
     const matchesTrip = !selectedTripId || p.tripId === selectedTripId;
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.whatsapp.includes(searchQuery) ||
-      p.address.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.whatsapp.toLowerCase().includes(q) ||
+      p.address.toLowerCase().includes(q);
     return matchesTrip && matchesSearch;
   });
+
+  // clamp page kalau jumlah data berubah
+  const totalFiltered = filteredParticipants.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedParticipants = filteredParticipants.slice(start, end);
+
+  const stats = {
+    total: filteredParticipants.length,
+    present: filteredParticipants.filter((p) => p.lastCheckIn).length,
+    absent: filteredParticipants.filter((p) => !p.lastCheckIn).length,
+  };
 
   const handleOpenDialog = (participant?: Participant) => {
     if (!selectedTripId && !participant) {
@@ -302,12 +335,6 @@ export default function AdminParticipantsPage() {
   const cancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeletingParticipant(null);
-  };
-
-  const stats = {
-    total: filteredParticipants.length,
-    present: filteredParticipants.filter((p) => p.lastCheckIn).length,
-    absent: filteredParticipants.filter((p) => !p.lastCheckIn).length,
   };
 
   return (
@@ -492,7 +519,7 @@ export default function AdminParticipantsPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredParticipants.map((participant) => (
+                      pagedParticipants.map((participant) => (
                         <tr
                           key={participant.id}
                           className="border-b border-slate-100 hover:bg-slate-50"
@@ -560,6 +587,49 @@ export default function AdminParticipantsPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination controls */}
+              {filteredParticipants.length > 0 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
+                  <div>
+                    Menampilkan{" "}
+                    <span className="font-semibold">
+                      {start + 1}–{Math.min(end, filteredParticipants.length)}
+                    </span>{" "}
+                    dari{" "}
+                    <span className="font-semibold">
+                      {filteredParticipants.length}
+                    </span>{" "}
+                    peserta
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage <= 1}
+                    >
+                      Sebelumnya
+                    </Button>
+                    <span>
+                      Halaman{" "}
+                      <span className="font-semibold">
+                        {safePage}/{totalPages}
+                      </span>
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={safePage >= totalPages}
+                    >
+                      Berikutnya
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>

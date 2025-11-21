@@ -73,6 +73,8 @@ interface GalleryItem {
   createdAt?: string | Date;
 }
 
+const pageSize = 10; // jumlah galeri per halaman
+
 function formatDateTime(value?: string | Date) {
   if (!value) return "-";
   const d = typeof value === "string" ? new Date(value) : value;
@@ -150,6 +152,9 @@ export default function AdminGalleryPage() {
     participantName?: string;
   } | null>(null);
 
+  // pagination state
+  const [page, setPage] = useState(1);
+
   useEffect(() => {
     loadTrips();
   }, []);
@@ -165,6 +170,11 @@ export default function AdminGalleryPage() {
       setSessions([]);
     }
   }, [selectedTripId]);
+
+  // reset halaman jika search berubah
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
 
   async function loadTrips() {
     setLoadingTrips(true);
@@ -203,6 +213,7 @@ export default function AdminGalleryPage() {
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat galeri");
       setItems(json.items ?? []);
+      setPage(1); // reset halaman saat trip berganti / reload galeri
     } catch (err: any) {
       console.error(err);
       toast({
@@ -319,6 +330,14 @@ export default function AdminGalleryPage() {
       (item.note || "").toLowerCase().includes(q)
     );
   });
+
+  // pagination client-side
+  const totalFiltered = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * pageSize;
+  const end = start + pageSize;
+  const pagedItems = filteredItems.slice(start, end);
 
   const stats = {
     total: filteredItems.length,
@@ -675,12 +694,12 @@ export default function AdminGalleryPage() {
                   <p className="py-4 text-center text-slate-500">
                     Memuat galeri…
                   </p>
-                ) : filteredItems.length === 0 ? (
+                ) : pagedItems.length === 0 ? (
                   <p className="py-4 text-center text-slate-500">
                     Belum ada foto galeri untuk trip ini.
                   </p>
                 ) : (
-                  filteredItems.map((item) => (
+                  pagedItems.map((item) => (
                     <div
                       key={item.id}
                       className="border border-slate-200 rounded-xl p-3 shadow-sm bg-white"
@@ -829,7 +848,7 @@ export default function AdminGalleryPage() {
                           Memuat galeri…
                         </td>
                       </tr>
-                    ) : filteredItems.length === 0 ? (
+                    ) : pagedItems.length === 0 ? (
                       <tr>
                         <td
                           colSpan={8}
@@ -839,7 +858,7 @@ export default function AdminGalleryPage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredItems.map((item) => (
+                      pagedItems.map((item) => (
                         <tr
                           key={item.id}
                           className="border-b border-slate-100 hover:bg-slate-50"
@@ -939,6 +958,49 @@ export default function AdminGalleryPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination controls */}
+              {filteredItems.length > 0 && (
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
+                  <div>
+                    Menampilkan{" "}
+                    <span className="font-semibold">
+                      {start + 1}–{Math.min(end, filteredItems.length)}
+                    </span>{" "}
+                    dari{" "}
+                    <span className="font-semibold">
+                      {filteredItems.length}
+                    </span>{" "}
+                    foto galeri
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage <= 1}
+                    >
+                      Sebelumnya
+                    </Button>
+                    <span>
+                      Halaman{" "}
+                      <span className="font-semibold">
+                        {safePage}/{totalPages}
+                      </span>
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={safePage >= totalPages}
+                    >
+                      Berikutnya
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
