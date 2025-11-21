@@ -10,8 +10,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Pemandu Wisata Eksekutif",
-  description: "Aplikasi panduan wisata eksklusif untuk eksekutif",
+  title: "Teman Wisata",
+  description: "Aplikasi pemandu wisata eksekutif",
   icons: {
     icon: [
       {

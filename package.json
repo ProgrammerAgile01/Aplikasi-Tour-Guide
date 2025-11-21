@@ -1,12 +1,12 @@
 {
-  "name": "my-v0-project",
+  "name": "temanwisata",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "build": "next build",
     "dev": "cross-env PORT=3010 next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "cross-env PORT=3010 next start"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
