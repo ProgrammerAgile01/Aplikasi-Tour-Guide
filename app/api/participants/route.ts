@@ -174,7 +174,7 @@ export async function POST(req: Request) {
 
     try {
       const origin = new URL(req.url).origin;
-      const loginUrl = `${origin}/login`;
+      const loginUrl = `https://temanwisata.com/login`;
 
       const isNewAccount = !!plainPassword;
       const type: WhatsAppTemplateType = isNewAccount

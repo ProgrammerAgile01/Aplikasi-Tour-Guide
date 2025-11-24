@@ -39,7 +39,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "Jika ada perubahan jadwal penting, kami akan menginformasikan kembali melalui WhatsApp. 🙏",
         "",
         "Terima kasih,",
-        "Tim Tour Guide",
+        "Tim Teman Wisata",
       ].join("\n");
 
     case "PARTICIPANT_REGISTERED_NEW":
@@ -50,7 +50,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "📍 Trip: {{trip_name}}",
         "🌍 Lokasi: {{trip_location}}",
         "",
-        "Berikut akun untuk akses aplikasi Tour Guide:",
+        "Berikut akun untuk akses aplikasi Teman Wisata:",
         "",
         "🔐 Login",
         "• Username   : {{login_username}}",
@@ -62,7 +62,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "Setelah berhasil login, segera ganti password di menu Profil demi keamanan ya 🙏",
         "",
         "Terima kasih,",
-        "Tim Tour Guide",
+        "Tim Teman Wisata",
       ].join("\n");
 
     case "PARTICIPANT_REGISTERED_EXISTING":
@@ -73,7 +73,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "📍 Trip: {{trip_name}}",
         "🌍 Lokasi: {{trip_location}}",
         "",
-        "Silakan login ke aplikasi Tour Guide dengan akun yang sudah pernah kami kirim sebelumnya.",
+        "Silakan login ke aplikasi Teman Wisata dengan akun yang sudah pernah kami kirim sebelumnya.",
         "",
         "🔐 Login:",
         "• Username: {{login_username}}",
@@ -84,7 +84,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "Jika lupa password, kamu bisa gunakan fitur *Lupa Password* di halaman login. 🙏",
         "",
         "Terima kasih,",
-        "Tim Tour Guide",
+        "Tim Teman Wisata",
       ].join("\n");
 
     case "ANNOUNCEMENT":
