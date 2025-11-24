@@ -56,7 +56,7 @@ export function getDefaultTemplateContent(type: WhatsAppTemplateType): string {
         "• Username   : {{login_username}}",
         "• Password   : {{login_password}}",
         "",
-        "Silakan login di:",
+        "Silahkan login di:",
         "{{login_url}}",
         "",
         "Setelah berhasil login, segera ganti password di menu Profil demi keamanan ya 🙏",

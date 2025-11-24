@@ -6,6 +6,7 @@ const UpdateParticipantSchema = z.object({
   name: z.string().trim().min(1),
   whatsapp: z.string().trim().min(3),
   address: z.string().trim().min(1),
+  note: z.string().trim().optional().or(z.literal("").optional()),
 });
 
 async function resolveId(req: Request, params: any) {
@@ -70,6 +71,7 @@ export async function PUT(req: Request, { params }: { params: any }) {
           name: data.name,
           whatsapp: data.whatsapp,
           address: data.address,
+          note: data.note && data.note.length > 0 ? data.note : null,
         },
       });
 

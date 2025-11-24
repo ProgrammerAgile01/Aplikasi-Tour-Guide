@@ -3,16 +3,12 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import {
-  getWhatsAppTemplateContent,
-  applyTemplate,
-  WhatsAppTemplateType,
-} from "@/lib/whatsapp-templates";
 
 const CreateParticipantSchema = z.object({
   name: z.string().trim().min(1),
   whatsapp: z.string().trim().min(3),
   address: z.string().trim().min(1),
+  note: z.string().trim().optional().or(z.literal("").optional()),
   tripId: z.string().trim().min(1),
 });
 
@@ -33,7 +29,7 @@ function generateRandomPassword(len = 10) {
     .slice(0, len);
 }
 
-// ==================== HANDLERS ====================
+// ==================== GET /api/participants ====================
 
 export async function GET(req: Request) {
   try {
@@ -56,6 +52,7 @@ export async function GET(req: Request) {
         { name: { contains: q, mode: "insensitive" } },
         { whatsapp: { contains: q, mode: "insensitive" } },
         { address: { contains: q, mode: "insensitive" } },
+        { note: { contains: q, mode: "insensitive" } },
       ];
     }
 
@@ -78,6 +75,8 @@ export async function GET(req: Request) {
     );
   }
 }
+
+// ==================== POST /api/participants ====================
 
 export async function POST(req: Request) {
   try {
@@ -137,10 +136,12 @@ export async function POST(req: Request) {
         name: data.name,
         whatsapp: data.whatsapp,
         address: data.address,
+        note: data.note && data.note.length > 0 ? data.note : null,
         tripId: data.tripId,
         ...(plainPassword && loginUsernameForParticipant
           ? {
               loginUsername: loginUsernameForParticipant,
+              initialPassword: plainPassword, // SIMPAN PASSWORD AWAL
             }
           : {}),
       },
@@ -170,65 +171,7 @@ export async function POST(req: Request) {
       isActive: user!.isActive,
     };
 
-    // ==================== ENQUEUE WHATSAPP MESSAGE (dengan template) ====================
-
-    try {
-      const origin = new URL(req.url).origin;
-      const loginUrl = `https://temanwisata.com/login`;
-
-      const isNewAccount = !!plainPassword;
-      const type: WhatsAppTemplateType = isNewAccount
-        ? "PARTICIPANT_REGISTERED_NEW"
-        : "PARTICIPANT_REGISTERED_EXISTING";
-
-      const { content: templateContent } = await getWhatsAppTemplateContent(
-        data.tripId,
-        type
-      );
-
-      const loginUsername =
-        loginUsernameForParticipant || userResp.username || "akunanda";
-
-      const content = applyTemplate(templateContent, {
-        participant_name: createdParticipant.name,
-        trip_name: trip.name,
-        trip_location: trip.location ?? "",
-        login_username: loginUsername,
-        login_password: plainPassword ?? "",
-        login_url: loginUrl,
-      });
-
-      const templateCode = isNewAccount
-        ? "TRIP_ACCOUNT_CREATED"
-        : "TRIP_ACCOUNT_LINKED";
-
-      await prisma.whatsAppMessage.create({
-        data: {
-          tripId: data.tripId,
-          participantId: createdParticipant.id,
-          to: data.whatsapp,
-          template: templateCode,
-          content,
-          payload: {
-            type: templateCode,
-            tripId: data.tripId,
-            participantId: createdParticipant.id,
-            userId: userResp.id,
-          },
-          status: "PENDING",
-        },
-      });
-
-      // Trigger worker WA (fire-and-forget)
-      fetch(`${origin}/api/wa/worker-send`, {
-        method: "POST",
-      }).catch((e) => {
-        console.error("Gagal memanggil worker-send dari /api/participants:", e);
-      });
-    } catch (waErr) {
-      console.error("Gagal enqueue WA credential peserta:", waErr);
-      // tidak menggagalkan pembuatan peserta
-    }
+    // TIDAK kirim WA di sini — kirimnya lewat endpoint khusus send-credentials
 
     return NextResponse.json(
       {

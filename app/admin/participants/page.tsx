@@ -18,6 +18,7 @@ import {
   Map,
   Loader2,
   Copy,
+  Send,
 } from "lucide-react";
 import {
   Dialog,
@@ -40,6 +41,7 @@ interface Participant {
   name: string;
   whatsapp: string;
   address: string;
+  note?: string | null;
   lastCheckIn?: string | null;
   totalCheckIns: number;
   tripId: string;
@@ -64,6 +66,7 @@ export default function AdminParticipantsPage() {
     name: "",
     whatsapp: "",
     address: "",
+    note: "",
   });
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -88,6 +91,14 @@ export default function AdminParticipantsPage() {
     username: string;
     password?: string;
   } | null>(null);
+
+  const [sendAllDialogOpen, setSendAllDialogOpen] = useState(false);
+  const [sendSingleDialogOpen, setSendSingleDialogOpen] = useState(false);
+  const [sendingAll, setSendingAll] = useState(false);
+  const [sendingSingle, setSendingSingle] = useState(false);
+  const [selectedForSend, setSelectedForSend] = useState<Participant | null>(
+    null
+  );
 
   useEffect(() => {
     loadTrips();
@@ -161,6 +172,7 @@ export default function AdminParticipantsPage() {
     name: string;
     whatsapp: string;
     address: string;
+    note?: string;
     tripId: string;
   }) {
     const res = await fetch("/api/participants", {
@@ -173,7 +185,7 @@ export default function AdminParticipantsPage() {
 
   async function updateParticipantApi(
     id: string,
-    payload: { name: string; whatsapp: string; address: string }
+    payload: { name: string; whatsapp: string; address: string; note?: string }
   ) {
     const res = await fetch(`/api/participants/${encodeURIComponent(id)}`, {
       method: "PUT",
@@ -198,7 +210,8 @@ export default function AdminParticipantsPage() {
       !q ||
       p.name.toLowerCase().includes(q) ||
       p.whatsapp.toLowerCase().includes(q) ||
-      p.address.toLowerCase().includes(q);
+      p.address.toLowerCase().includes(q) ||
+      (p.note && p.note.toLowerCase().includes(q));
     return matchesTrip && matchesSearch;
   });
 
@@ -216,6 +229,8 @@ export default function AdminParticipantsPage() {
     absent: filteredParticipants.filter((p) => !p.lastCheckIn).length,
   };
 
+  const currentTrip = trips.find((t) => t.id === selectedTripId);
+
   const handleOpenDialog = (participant?: Participant) => {
     if (!selectedTripId && !participant) {
       toast({
@@ -231,10 +246,11 @@ export default function AdminParticipantsPage() {
         name: participant.name,
         whatsapp: participant.whatsapp,
         address: participant.address,
+        note: participant.note ?? "",
       });
     } else {
       setEditingId(null);
-      setFormData({ name: "", whatsapp: "", address: "" });
+      setFormData({ name: "", whatsapp: "", address: "", note: "" });
     }
     setIsDialogOpen(true);
   };
@@ -242,7 +258,7 @@ export default function AdminParticipantsPage() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingId(null);
-    setFormData({ name: "", whatsapp: "", address: "" });
+    setFormData({ name: "", whatsapp: "", address: "", note: "" });
   };
 
   const handleSubmit = async () => {
@@ -335,6 +351,115 @@ export default function AdminParticipantsPage() {
   const cancelDelete = () => {
     setDeleteDialogOpen(false);
     setDeletingParticipant(null);
+  };
+
+  // --- Buka modal kirim akun untuk semua peserta di trip ---
+  const openSendAllDialog = () => {
+    if (!selectedTripId) {
+      toast({
+        title: "Pilih Trip",
+        description: "Silakan pilih trip terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (filteredParticipants.length === 0) {
+      toast({
+        title: "Tidak Ada Peserta",
+        description: "Belum ada peserta di trip ini.",
+      });
+      return;
+    }
+
+    setSendAllDialogOpen(true);
+  };
+
+  const confirmSendAll = async () => {
+    if (!selectedTripId) return;
+    setSendingAll(true);
+    try {
+      const res = await fetch("/api/participants/send-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId: selectedTripId }),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || "Gagal mengirim akun ke peserta");
+      }
+
+      toast({
+        title: "Berhasil Diantrikan",
+        description: `Akun dikirim ke ${json.sentCount} peserta. Terlewati (sudah pernah dikirim): ${json.skippedAlreadySent}. Gagal: ${json.failedCount}.`,
+      });
+
+      setSendAllDialogOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: err.message || "Gagal mengirim akun ke peserta",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingAll(false);
+    }
+  };
+
+  // --- Kirim akun per peserta ---
+  const openSendSingleDialog = (p: Participant) => {
+    setSelectedForSend(p);
+    setSendSingleDialogOpen(true);
+  };
+
+  const confirmSendSingle = async () => {
+    if (!selectedForSend) return;
+    setSendingSingle(true);
+    try {
+      const res = await fetch(
+        `/api/participants/${encodeURIComponent(
+          selectedForSend.id
+        )}/send-credentials`,
+        {
+          method: "POST",
+        }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || "Gagal mengirim akun peserta");
+      }
+
+      if (json.alreadySent) {
+        toast({
+          title: "Sudah Pernah Dikirim",
+          description:
+            json.message ||
+            `Akun untuk ${selectedForSend.name} sudah pernah dikirim sebelumnya.`,
+        });
+      } else {
+        toast({
+          title: "Berhasil Diantrikan",
+          description:
+            json.message ||
+            `Akun untuk ${selectedForSend.name} berhasil diantrikan ke WhatsApp.`,
+        });
+      }
+
+      setSendSingleDialogOpen(false);
+      setSelectedForSend(null);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: err.message || "Gagal mengirim akun peserta",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingSingle(false);
+    }
   };
 
   return (
@@ -465,18 +590,31 @@ export default function AdminParticipantsPage() {
 
           <Card>
             <CardHeader>
-              <div className="flex justify-between">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                 <CardTitle className="text-lg md:text-xl">
                   Daftar Peserta
                 </CardTitle>
-                <Button
-                  onClick={() => handleOpenDialog()}
-                  className="gap-2 bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus size={16} /> Tambah Peserta
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={openSendAllDialog}
+                    disabled={filteredParticipants.length === 0}
+                    className="gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <Send size={16} />
+                    Kirim Akun ke Semua Peserta
+                  </Button>
+                  <Button
+                    onClick={() => handleOpenDialog()}
+                    className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus size={16} /> Tambah Peserta
+                  </Button>
+                </div>
               </div>
             </CardHeader>
+
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -490,6 +628,9 @@ export default function AdminParticipantsPage() {
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Alamat
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Catatan
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Status Kehadiran Terakhir
@@ -533,6 +674,9 @@ export default function AdminParticipantsPage() {
                           <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
                             {participant.address}
                           </td>
+                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                            {participant.note ?? "-"}
+                          </td>
                           <td className="py-3 px-4">
                             {participant.lastCheckIn ? (
                               <div className="flex items-center gap-2">
@@ -557,7 +701,7 @@ export default function AdminParticipantsPage() {
                             {participant.totalCheckIns}
                           </td>
                           <td className="py-3 px-4">
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -578,6 +722,16 @@ export default function AdminParticipantsPage() {
                                 className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
                                 <Trash2 size={14} /> Hapus
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  openSendSingleDialog(participant)
+                                }
+                                className="gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <Send size={14} /> Kirim Akun
                               </Button>
                             </div>
                           </td>
@@ -693,6 +847,17 @@ export default function AdminParticipantsPage() {
                   setFormData({ ...formData, address: e.target.value })
                 }
                 rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="note">Catatan (opsional)</Label>
+              <Textarea
+                id="note"
+                value={formData.note}
+                onChange={(e) =>
+                  setFormData({ ...formData, note: e.target.value })
+                }
+                rows={2}
               />
             </div>
           </div>
@@ -812,6 +977,145 @@ export default function AdminParticipantsPage() {
           </div>
           <DialogFooter>
             <Button onClick={() => setCredentialModalOpen(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Kirim akun ke semua peserta - modal konfirmasi */}
+      <Dialog
+        open={sendAllDialogOpen}
+        onOpenChange={(open) => {
+          if (!sendingAll) setSendAllDialogOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] backdrop-blur-xl bg-white/90 border border-emerald-100 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Send className="w-5 h-5 text-emerald-500" />
+              Kirim Akun ke Semua Peserta
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600">
+              Pesan akun login akan dikirim ke WhatsApp seluruh peserta di trip
+              ini menggunakan template yang sudah Anda siapkan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Trip</span>
+              <span className="font-semibold text-slate-800">
+                {currentTrip?.name ?? "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Jumlah Peserta</span>
+              <span className="font-semibold text-slate-800">
+                {filteredParticipants.length} orang
+              </span>
+            </div>
+            <div className="rounded-md bg-emerald-50 border border-emerald-100 px-3 py-2 text-xs text-emerald-800">
+              <p className="font-semibold">Catatan:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>
+                  Tombol ini akan mengirim informasi akun ke seluruh peserta di
+                  trip ini
+                </li>
+                <li>Proses pengiriman dilakukan melalui antrean WhatsApp</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="mt-5">
+            <Button
+              variant="outline"
+              onClick={() => setSendAllDialogOpen(false)}
+              disabled={sendingAll}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={confirmSendAll}
+              disabled={sendingAll}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            >
+              {sendingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Kirim Sekarang
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Kirim akun ke satu peserta - modal konfirmasi */}
+      <Dialog
+        open={sendSingleDialogOpen}
+        onOpenChange={(open) => {
+          if (!sendingSingle) setSendSingleDialogOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-[480px] backdrop-blur-xl bg-white/90 border border-sky-100 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Send className="w-5 h-5 text-sky-500" />
+              Kirim Akun Peserta
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600">
+              Pesan akun login akan dikirim ke peserta ini melalui WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Nama Peserta</span>
+              <span className="font-semibold text-slate-800">
+                {selectedForSend?.name ?? "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">No. WhatsApp</span>
+              <span className="font-mono text-slate-800">
+                {selectedForSend?.whatsapp ?? "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">Trip</span>
+              <span className="font-semibold text-slate-800">
+                {currentTrip?.name ?? "-"}
+              </span>
+            </div>
+            <div className="rounded-md bg-sky-50 border border-sky-100 px-3 py-2 text-xs text-sky-800">
+              <p className="font-semibold">Catatan:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>
+                  Anda dapat menggunakan tombol ini kapan saja untuk mengiri
+                  informasi akun ke peserta
+                </li>
+                <li>
+                  Untuk peserta baru, username & password akan dibuat otomatis
+                  bila belum ada.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="mt-5">
+            <Button
+              variant="outline"
+              onClick={() => setSendSingleDialogOpen(false)}
+              disabled={sendingSingle}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={confirmSendSingle}
+              disabled={sendingSingle}
+              className="bg-sky-600 hover:bg-sky-700 text-white gap-2"
+            >
+              {sendingSingle ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Kirim via WhatsApp
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
