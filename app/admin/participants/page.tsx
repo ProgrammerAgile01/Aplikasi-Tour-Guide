@@ -19,6 +19,7 @@ import {
   Loader2,
   Copy,
   Send,
+  IdCard,
 } from "lucide-react";
 import {
   Dialog,
@@ -109,6 +110,20 @@ export default function AdminParticipantsPage() {
   const [selectedForSend, setSelectedForSend] = useState<Participant | null>(
     null
   );
+
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedForDetail, setSelectedForDetail] =
+    useState<Participant | null>(null);
+
+  const openDetailDialog = (p: Participant) => {
+    setSelectedForDetail(p);
+    setDetailDialogOpen(true);
+  };
+
+  const closeDetailDialog = () => {
+    setDetailDialogOpen(false);
+    setSelectedForDetail(null);
+  };
 
   useEffect(() => {
     loadTrips();
@@ -693,34 +708,19 @@ export default function AdminParticipantsPage() {
                         Nama
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        NIK
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Nomor WhatsApp
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        TTL
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Jenis Kelamin
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Umur
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Alamat
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Catatan
-                      </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Nomor Kamar
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Status Kehadiran Terakhir
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Total Check-in
+                        Catatan
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Aksi
@@ -753,26 +753,7 @@ export default function AdminParticipantsPage() {
                             {participant.name}
                           </td>
                           <td className="py-3 px-4 text-slate-600">
-                            {participant.nik ?? "-"}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">
                             {participant.whatsapp}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
-                            {participant.birthPlace || participant.birthDate
-                              ? `${participant.birthPlace ?? ""}${
-                                  participant.birthPlace &&
-                                  participant.birthDate
-                                    ? ", "
-                                    : ""
-                                }${
-                                  participant.birthDate
-                                    ? new Date(
-                                        participant.birthDate
-                                      ).toLocaleDateString("id-ID")
-                                    : ""
-                                }`
-                              : "-"}
                           </td>
                           <td className="py-3 px-4 text-slate-600">
                             {participant.gender === "MALE"
@@ -781,20 +762,8 @@ export default function AdminParticipantsPage() {
                               ? "P"
                               : "-"}
                           </td>
-                          <td className="py-3 px-4 text-slate-600">
-                            {(() => {
-                              const age = calculateAge(participant.birthDate);
-                              return age !== null ? `${age} th` : "-";
-                            })()}
-                          </td>
                           <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
                             {participant.address}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
-                            {participant.note ?? "-"}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600">
-                            {participant.roomNumber ?? "-"}
                           </td>
                           <td className="py-3 px-4">
                             {participant.lastCheckIn ? (
@@ -816,11 +785,19 @@ export default function AdminParticipantsPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-slate-700">
-                            {participant.totalCheckIns}
+                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                            {participant.note ?? "-"}
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openDetailDialog(participant)}
+                                className="gap-1"
+                              >
+                                <IdCard size={14} /> Detail
+                              </Button>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1327,6 +1304,186 @@ export default function AdminParticipantsPage() {
                 <Send className="w-4 h-4" />
               )}
               Kirim via WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Peserta - modal view only */}
+      <Dialog
+        open={detailDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDetailDialog();
+          else if (!selectedForDetail) setDetailDialogOpen(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IdCard className="w-5 h-5 text-sky-500" />
+              Detail Peserta
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+            {selectedForDetail && (
+              <div className="space-y-6 py-2 text-sm">
+                {/* Header identitas utama */}
+                <div className="rounded-xl border bg-slate-50 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">
+                      Nama Lengkap
+                    </p>
+                    <p className="text-lg font-semibold text-slate-900">
+                      {selectedForDetail.name}
+                    </p>
+                    {selectedForDetail.gender && (
+                      <p className="text-xs text-slate-600 mt-1">
+                        {selectedForDetail.gender === "MALE"
+                          ? "Laki-laki"
+                          : "Perempuan"}
+                        {(() => {
+                          const age = calculateAge(selectedForDetail.birthDate);
+                          return age !== null ? `, ${age} tahun` : "";
+                        })()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    <p>Trip</p>
+                    <p className="font-medium text-slate-800">
+                      {currentTrip?.name ?? "-"}
+                    </p>
+                    <p className="mt-1">
+                      Terakhir check-in:{" "}
+                      <span className="font-medium text-slate-800">
+                        {selectedForDetail.lastCheckIn ?? "Belum pernah"}
+                      </span>
+                    </p>
+                    <p>
+                      Total check-in:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {selectedForDetail.totalCheckIns}
+                      </span>
+                    </p>
+                    {selectedForDetail.roomNumber && (
+                      <p className="mt-1">
+                        Nomor kamar:{" "}
+                        <span className="font-semibold">
+                          {selectedForDetail.roomNumber}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dua kolom seperti lembar paspor */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Kolom kiri: Data Identitas */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      Data Identitas
+                    </h3>
+                    <div className="rounded-xl border bg-white px-4 py-3 space-y-2">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">
+                          NIK / No. Identitas
+                        </span>
+                        <span className="font-medium text-slate-900 text-right break-all">
+                          {selectedForDetail.nik || "—"}
+                        </span>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">
+                          Tempat, Tanggal Lahir
+                        </span>
+                        <span className="font-medium text-slate-900 text-right">
+                          {selectedForDetail.birthPlace ||
+                          selectedForDetail.birthDate
+                            ? `${selectedForDetail.birthPlace ?? ""}${
+                                selectedForDetail.birthPlace &&
+                                selectedForDetail.birthDate
+                                  ? ", "
+                                  : ""
+                              }${
+                                selectedForDetail.birthDate
+                                  ? new Date(
+                                      selectedForDetail.birthDate
+                                    ).toLocaleDateString("id-ID", {
+                                      day: "2-digit",
+                                      month: "long",
+                                      year: "numeric",
+                                    })
+                                  : ""
+                              }`
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Jenis Kelamin</span>
+                        <span className="font-medium text-slate-900">
+                          {selectedForDetail.gender === "MALE"
+                            ? "Laki-laki"
+                            : selectedForDetail.gender === "FEMALE"
+                            ? "Perempuan"
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Umur</span>
+                        <span className="font-medium text-slate-900">
+                          {(() => {
+                            const age = calculateAge(
+                              selectedForDetail.birthDate
+                            );
+                            return age !== null ? `${age} tahun` : "—";
+                          })()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Kolom kanan: Kontak & Alamat */}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+                      Kontak & Alamat
+                    </h3>
+                    <div className="rounded-xl border bg-white px-4 py-3 space-y-2">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-slate-500">Nomor WhatsApp</span>
+                        <span className="font-mono text-slate-900 text-right">
+                          {selectedForDetail.whatsapp}
+                        </span>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div>
+                        <span className="text-slate-500 text-xs">
+                          Alamat Lengkap
+                        </span>
+                        <p className="mt-1 text-slate-900 whitespace-pre-line">
+                          {selectedForDetail.address || "—"}
+                        </p>
+                      </div>
+                      <div className="h-px bg-slate-100" />
+                      <div>
+                        <span className="text-slate-500 text-xs">Catatan</span>
+                        <p className="mt-1 text-slate-900 whitespace-pre-line">
+                          {selectedForDetail.note || "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDetailDialog}>
+              Tutup
             </Button>
           </DialogFooter>
         </DialogContent>
