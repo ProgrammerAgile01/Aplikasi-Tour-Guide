@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Loader2,
   AlertCircle,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -122,6 +123,7 @@ export default function OverviewPage() {
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exportLoading, setExportLoading] = useState(false);
 
   const [checkInStatus, setCheckInStatus] = useState<{
     checkedIn: boolean;
@@ -287,6 +289,51 @@ export default function OverviewPage() {
     }
 
     router.push(`/trip/${tripId}/session/${nextAgenda.id}/checkin`);
+  };
+
+  const handleExportExcel = async () => {
+    if (!tripId) return;
+
+    try {
+      setExportLoading(true);
+
+      const res = await fetch(
+        `/api/trips/${encodeURIComponent(tripId)}/participant/export`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Gagal mengunduh file Excel");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rekap-trip-${tripId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Berhasil",
+        description: "File Excel berhasil diunduh",
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Gagal Export",
+        description:
+          err?.message || "Terjadi kesalahan saat mengexport rekap perjalanan",
+        variant: "destructive",
+      });
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const title = data?.title ?? "—";
@@ -582,6 +629,32 @@ export default function OverviewPage() {
           </div>
         </div>
       )}
+      <Card className="p-4 bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-primary/20 rounded-lg">
+            <FileSpreadsheet size={20} className="text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-foreground">
+              Download Rekap Perjalananmu
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Simpan ringkasan agenda dan kehadiran kamu selama trip ini dalam
+              bentuk file Excel
+            </p>
+            <Button
+              onClick={handleExportExcel}
+              className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground text-sm"
+              disabled={exportLoading}
+            >
+              {exportLoading && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Download
+            </Button>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

@@ -9,6 +9,11 @@ const CreateParticipantSchema = z.object({
   whatsapp: z.string().trim().min(3),
   address: z.string().trim().min(1),
   note: z.string().trim().optional().or(z.literal("").optional()),
+  nik: z.string().trim().optional().or(z.literal("").optional()),
+  birthPlace: z.string().trim().optional().or(z.literal("").optional()),
+  birthDate: z.string().trim().optional().or(z.literal("").optional()), // kirim "YYYY-MM-DD" dari input type="date"
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  roomNumber: z.string().trim().optional().or(z.literal("").optional()),
   tripId: z.string().trim().min(1),
 });
 
@@ -53,6 +58,9 @@ export async function GET(req: Request) {
         { whatsapp: { contains: q, mode: "insensitive" } },
         { address: { contains: q, mode: "insensitive" } },
         { note: { contains: q, mode: "insensitive" } },
+        { nik: { contains: q, mode: "insensitive" } },
+        { birthPlace: { contains: q, mode: "insensitive" } },
+        { roomNumber: { contains: q, mode: "insensitive" } },
       ];
     }
 
@@ -91,6 +99,11 @@ export async function POST(req: Request) {
         { status: 404 }
       );
     }
+
+    const birthDate =
+      data.birthDate && data.birthDate.length > 0
+        ? new Date(data.birthDate)
+        : null;
 
     // ==================== USER & PARTICIPANT ====================
 
@@ -137,6 +150,17 @@ export async function POST(req: Request) {
         whatsapp: data.whatsapp,
         address: data.address,
         note: data.note && data.note.length > 0 ? data.note : null,
+        nik: data.nik && data.nik.length > 0 ? data.nik : null,
+        birthPlace:
+          data.birthPlace && data.birthPlace.length > 0
+            ? data.birthPlace
+            : null,
+        birthDate,
+        gender: data.gender ?? null,
+        roomNumber:
+          data.roomNumber && data.roomNumber.length > 0
+            ? data.roomNumber
+            : null,
         tripId: data.tripId,
         ...(plainPassword && loginUsernameForParticipant
           ? {

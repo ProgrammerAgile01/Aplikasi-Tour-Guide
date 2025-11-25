@@ -19,6 +19,8 @@ import {
   WifiOff,
   MessageCircle,
   XCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 type WaStatus = {
@@ -58,6 +60,15 @@ export default function AdminWhatsappPage() {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [disconnectLoading, setDisconnectLoading] = useState(false);
 
+  // pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const [total, setTotal] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasPrev = page > 1;
+  const hasNext = page < totalPages;
+
   const loadStatus = async () => {
     try {
       setLoadingStatus(true);
@@ -82,13 +93,16 @@ export default function AdminWhatsappPage() {
     }
   };
 
-  const loadLogs = async () => {
+  const loadLogs = async (targetPage?: number) => {
     try {
       setLogsLoading(true);
+      const pageToLoad = targetPage ?? page;
+
       const params = new URLSearchParams();
       if (filterStatus) params.set("status", filterStatus);
       if (search.trim()) params.set("q", search.trim());
-      params.set("take", "100");
+      params.set("take", String(pageSize));
+      params.set("page", String(pageToLoad));
 
       const res = await fetch(`/api/wa/logs?${params.toString()}`);
       const json = await res.json();
@@ -96,6 +110,8 @@ export default function AdminWhatsappPage() {
         throw new Error(json?.message || "Gagal memuat log");
       }
       setLogs(json.items || []);
+      setTotal(json.total || 0);
+      setPage(json.page || pageToLoad);
     } catch (err: any) {
       toast({
         title: "Gagal Memuat Log",
@@ -109,7 +125,8 @@ export default function AdminWhatsappPage() {
 
   useEffect(() => {
     loadStatus();
-    loadLogs();
+    loadLogs(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -234,14 +251,26 @@ export default function AdminWhatsappPage() {
     );
   };
 
+  const handleChangeStatusFilter = (value: string) => {
+    setFilterStatus(value);
+    // reset ke page 1 sekaligus reload
+    loadLogs(1);
+  };
+
+  const handleSearch = () => {
+    // reset ke page 1 saat cari
+    loadLogs(1);
+  };
+
+  const fromIndex = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const toIndex = Math.min(page * pageSize, total);
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">
-            Panel WhatsApp
-          </h1>
+          <h1 className="text-3xl font-bold text-slate-900">Panel WhatsApp</h1>
           <p className="text-slate-600 mt-1">
             Monitor koneksi WhatsApp dan lihat riwayat pesan yang dikirimkan ke
             peserta.
@@ -279,7 +308,9 @@ export default function AdminWhatsappPage() {
               onClick={loadStatus}
               disabled={loadingStatus}
             >
-              <RefreshCw className="w-4 h-4 animate-spin" />
+              <RefreshCw
+                className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`}
+              />
               Refresh Status
             </Button>
             <Button
@@ -314,7 +345,7 @@ export default function AdminWhatsappPage() {
               <select
                 className="h-9 px-3 border border-slate-200 rounded-md text-sm"
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => handleChangeStatusFilter(e.target.value)}
               >
                 <option value="">Semua Status</option>
                 <option value="PENDING">Pending</option>
@@ -325,9 +356,14 @@ export default function AdminWhatsappPage() {
               <Button
                 variant="outline"
                 className="bg-transparent"
-                onClick={loadLogs}
+                onClick={() => loadLogs(page)}
                 disabled={logsLoading}
               >
+                <RefreshCw
+                  className={`w-4 h-4 mr-1 ${
+                    logsLoading ? "animate-spin" : ""
+                  }`}
+                />
                 Refresh Log
               </Button>
             </div>
@@ -338,10 +374,10 @@ export default function AdminWhatsappPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") loadLogs();
+                  if (e.key === "Enter") handleSearch();
                 }}
               />
-              <Button onClick={loadLogs} disabled={logsLoading}>
+              <Button onClick={handleSearch} disabled={logsLoading}>
                 Cari
               </Button>
             </div>
@@ -430,6 +466,45 @@ export default function AdminWhatsappPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination bar */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-slate-600">
+            <div>
+              Menampilkan{" "}
+              <span className="font-medium">
+                {fromIndex}-{toIndex}
+              </span>{" "}
+              dari <span className="font-medium">{total}</span> log
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-transparent"
+                onClick={() => loadLogs(page - 1)}
+                disabled={!hasPrev || logsLoading}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Sebelumnya
+              </Button>
+              <span>
+                Halaman{" "}
+                <span className="font-semibold">
+                  {page}/{totalPages}
+                </span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-transparent"
+                onClick={() => loadLogs(page + 1)}
+                disabled={!hasNext || logsLoading}
+              >
+                Berikutnya
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

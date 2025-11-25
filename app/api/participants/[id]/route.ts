@@ -7,6 +7,11 @@ const UpdateParticipantSchema = z.object({
   whatsapp: z.string().trim().min(3),
   address: z.string().trim().min(1),
   note: z.string().trim().optional().or(z.literal("").optional()),
+  nik: z.string().trim().optional().or(z.literal("").optional()),
+  birthPlace: z.string().trim().optional().or(z.literal("").optional()),
+  birthDate: z.string().trim().optional().or(z.literal("").optional()),
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  roomNumber: z.string().trim().optional().or(z.literal("").optional()),
 });
 
 async function resolveId(req: Request, params: any) {
@@ -63,6 +68,11 @@ export async function PUT(req: Request, { params }: { params: any }) {
     const json = await req.json();
     const data = UpdateParticipantSchema.parse(json);
 
+    const birthDate =
+      data.birthDate && data.birthDate.length > 0
+        ? new Date(data.birthDate)
+        : null;
+
     const updated = await prisma.$transaction(async (tx) => {
       // 1) Update peserta
       const participant = await tx.participant.update({
@@ -72,6 +82,17 @@ export async function PUT(req: Request, { params }: { params: any }) {
           whatsapp: data.whatsapp,
           address: data.address,
           note: data.note && data.note.length > 0 ? data.note : null,
+          nik: data.nik && data.nik.length > 0 ? data.nik : null,
+          birthPlace:
+            data.birthPlace && data.birthPlace.length > 0
+              ? data.birthPlace
+              : null,
+          birthDate,
+          gender: data.gender ?? null,
+          roomNumber:
+            data.roomNumber && data.roomNumber.length > 0
+              ? data.roomNumber
+              : null,
         },
       });
 

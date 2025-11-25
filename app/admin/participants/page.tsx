@@ -42,6 +42,11 @@ interface Participant {
   whatsapp: string;
   address: string;
   note?: string | null;
+  nik?: string | null;
+  birthPlace?: string | null;
+  birthDate?: string | null; // ISO string dari API
+  gender?: "MALE" | "FEMALE" | null;
+  roomNumber?: string | null;
   lastCheckIn?: string | null;
   totalCheckIns: number;
   tripId: string;
@@ -67,6 +72,11 @@ export default function AdminParticipantsPage() {
     whatsapp: "",
     address: "",
     note: "",
+    nik: "",
+    birthPlace: "",
+    birthDate: "", // "YYYY-MM-DD"
+    gender: "", // "MALE" | "FEMALE"
+    roomNumber: "",
   });
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -173,6 +183,11 @@ export default function AdminParticipantsPage() {
     whatsapp: string;
     address: string;
     note?: string;
+    nik?: string;
+    birthPlace?: string;
+    birthDate?: string;
+    gender?: string;
+    roomNumber?: string;
     tripId: string;
   }) {
     const res = await fetch("/api/participants", {
@@ -185,7 +200,17 @@ export default function AdminParticipantsPage() {
 
   async function updateParticipantApi(
     id: string,
-    payload: { name: string; whatsapp: string; address: string; note?: string }
+    payload: {
+      name: string;
+      whatsapp: string;
+      address: string;
+      note?: string;
+      nik?: string;
+      birthPlace?: string;
+      birthDate?: string;
+      gender?: string;
+      roomNumber?: string;
+    }
   ) {
     const res = await fetch(`/api/participants/${encodeURIComponent(id)}`, {
       method: "PUT",
@@ -211,7 +236,10 @@ export default function AdminParticipantsPage() {
       p.name.toLowerCase().includes(q) ||
       p.whatsapp.toLowerCase().includes(q) ||
       p.address.toLowerCase().includes(q) ||
-      (p.note && p.note.toLowerCase().includes(q));
+      (p.note && p.note.toLowerCase().includes(q)) ||
+      (p.nik && p.nik.toLowerCase().includes(q)) ||
+      (p.birthPlace && p.birthPlace.toLowerCase().includes(q)) ||
+      (p.roomNumber && p.roomNumber.toLowerCase().includes(q));
     return matchesTrip && matchesSearch;
   });
 
@@ -247,10 +275,27 @@ export default function AdminParticipantsPage() {
         whatsapp: participant.whatsapp,
         address: participant.address,
         note: participant.note ?? "",
+        nik: participant.nik ?? "",
+        birthPlace: participant.birthPlace ?? "",
+        birthDate: participant.birthDate
+          ? participant.birthDate.slice(0, 10) // "YYYY-MM-DD"
+          : "",
+        gender: participant.gender ?? "",
+        roomNumber: participant.roomNumber ?? "",
       });
     } else {
       setEditingId(null);
-      setFormData({ name: "", whatsapp: "", address: "", note: "" });
+      setFormData({
+        name: "",
+        whatsapp: "",
+        address: "",
+        note: "",
+        nik: "",
+        birthPlace: "",
+        birthDate: "",
+        gender: "",
+        roomNumber: "",
+      });
     }
     setIsDialogOpen(true);
   };
@@ -258,7 +303,17 @@ export default function AdminParticipantsPage() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingId(null);
-    setFormData({ name: "", whatsapp: "", address: "", note: "" });
+    setFormData({
+      name: "",
+      whatsapp: "",
+      address: "",
+      note: "",
+      nik: "",
+      birthPlace: "",
+      birthDate: "",
+      gender: "",
+      roomNumber: "",
+    });
   };
 
   const handleSubmit = async () => {
@@ -462,6 +517,20 @@ export default function AdminParticipantsPage() {
     }
   };
 
+  function calculateAge(birthDateStr?: string | null): number | null {
+    if (!birthDateStr) return null;
+    const d = new Date(birthDateStr);
+    if (Number.isNaN(d.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+      age--;
+    }
+    return age >= 0 ? age : null;
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -624,13 +693,28 @@ export default function AdminParticipantsPage() {
                         Nama
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        NIK
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Nomor WhatsApp
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        TTL
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Jenis Kelamin
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Umur
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Alamat
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Catatan
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Nomor Kamar
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Status Kehadiran Terakhir
@@ -669,13 +753,48 @@ export default function AdminParticipantsPage() {
                             {participant.name}
                           </td>
                           <td className="py-3 px-4 text-slate-600">
+                            {participant.nik ?? "-"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
                             {participant.whatsapp}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                            {participant.birthPlace || participant.birthDate
+                              ? `${participant.birthPlace ?? ""}${
+                                  participant.birthPlace &&
+                                  participant.birthDate
+                                    ? ", "
+                                    : ""
+                                }${
+                                  participant.birthDate
+                                    ? new Date(
+                                        participant.birthDate
+                                      ).toLocaleDateString("id-ID")
+                                    : ""
+                                }`
+                              : "-"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {participant.gender === "MALE"
+                              ? "L"
+                              : participant.gender === "FEMALE"
+                              ? "P"
+                              : "-"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {(() => {
+                              const age = calculateAge(participant.birthDate);
+                              return age !== null ? `${age} th` : "-";
+                            })()}
                           </td>
                           <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
                             {participant.address}
                           </td>
                           <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
                             {participant.note ?? "-"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600">
+                            {participant.roomNumber ?? "-"}
                           </td>
                           <td className="py-3 px-4">
                             {participant.lastCheckIn ? (
@@ -803,64 +922,157 @@ export default function AdminParticipantsPage() {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit Peserta" : "Tambah Peserta Baru"}
             </DialogTitle>
             <DialogDescription>
               {editingId
-                ? "Perbarui informasi peserta di bawah ini."
-                : "Masukkan informasi peserta baru di bawah ini."}
+                ? "Perbarui informasi peserta di bawah ini"
+                : "Masukkan informasi peserta baru di bawah ini"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nama Lengkap *</Label>
-              <Input
-                id="name"
-                placeholder="Contoh: Budi Santoso"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp">Nomor WhatsApp *</Label>
-              <Input
-                id="whatsapp"
-                placeholder="Contoh: +62 812-3456-7890"
-                value={formData.whatsapp}
-                onChange={(e) =>
-                  setFormData({ ...formData, whatsapp: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Alamat Lengkap *</Label>
-              <Textarea
-                id="address"
-                placeholder="Contoh: Jl. Sudirman No. 123, Jakarta Pusat"
-                value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="note">Catatan (opsional)</Label>
-              <Textarea
-                id="note"
-                value={formData.note}
-                onChange={(e) =>
-                  setFormData({ ...formData, note: e.target.value })
-                }
-                rows={2}
-              />
+
+          {/* === SCROLLABLE FORM === */}
+          <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nama Lengkap *</Label>
+                <Input
+                  id="name"
+                  placeholder="Contoh: Budi Santoso"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nik">NIK / Nomor Identitas</Label>
+                  <Input
+                    id="nik"
+                    placeholder="Contoh: 3271xxxxxxxxxxxx"
+                    value={formData.nik}
+                    onChange={(e) =>
+                      setFormData({ ...formData, nik: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp">Nomor WhatsApp *</Label>
+                  <Input
+                    id="whatsapp"
+                    placeholder="Contoh: 0812345584"
+                    value={formData.whatsapp}
+                    onChange={(e) =>
+                      setFormData({ ...formData, whatsapp: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="birthPlace">Tempat Lahir</Label>
+                  <Input
+                    id="birthPlace"
+                    placeholder="Contoh: Jakarta"
+                    value={formData.birthPlace}
+                    onChange={(e) =>
+                      setFormData({ ...formData, birthPlace: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birthDate">Tanggal Lahir</Label>
+                  <Input
+                    id="birthDate"
+                    type="date"
+                    value={formData.birthDate}
+                    onChange={(e) =>
+                      setFormData({ ...formData, birthDate: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Jenis Kelamin</Label>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value="MALE"
+                        checked={formData.gender === "MALE"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, gender: e.target.value })
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>Laki-laki</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name="gender"
+                        value="FEMALE"
+                        checked={formData.gender === "FEMALE"}
+                        onChange={(e) =>
+                          setFormData({ ...formData, gender: e.target.value })
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>Perempuan</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="roomNumber">Nomor Kamar (opsional)</Label>
+                  <Input
+                    id="roomNumber"
+                    placeholder="Contoh: 302 / B-12"
+                    value={formData.roomNumber}
+                    onChange={(e) =>
+                      setFormData({ ...formData, roomNumber: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Alamat Lengkap *</Label>
+                <Textarea
+                  id="address"
+                  placeholder="Contoh: Jl. Sudirman No. 123, Jakarta Pusat"
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  rows={3}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="note">Catatan (opsional)</Label>
+                <Textarea
+                  id="note"
+                  value={formData.note}
+                  onChange={(e) =>
+                    setFormData({ ...formData, note: e.target.value })
+                  }
+                  rows={2}
+                />
+              </div>
             </div>
           </div>
+
+          {/* === FIXED FOOTER === */}
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
               Batal
