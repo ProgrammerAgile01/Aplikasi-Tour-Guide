@@ -44,6 +44,7 @@ model Trip {
   badgeDefinitions BadgeDefinition[]
   participantBadges ParticipantBadge[]
   whatsappTemplates WhatsAppTemplate[]
+  flights          Flight[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -155,6 +156,7 @@ model Participant {
   userTrips         UserTrip[]
   galleries         Gallery[]
   participantBadges ParticipantBadge[]
+  flights          Flight[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -386,4 +388,51 @@ model WhatsAppTemplate {
   @@unique([tripId, type])
   @@index([tripId])
   @@index([type])
+}
+
+enum FlightDirection {
+  DEPARTURE  // berangkat
+  RETURN     // pulang
+}
+
+enum FlightPassengerRole {
+  PESERTA
+  TL_AGENT
+}
+
+model Flight {
+  id          String   @id @default(cuid())
+
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  // Optional: link ke Participant kalau ini penerbangan milik peserta
+  participantId String?
+  participant   Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+
+  // Data utama
+  passengerName   String                 // nama (peserta atau TL agent)
+  role            FlightPassengerRole    // PESERTA / TL_AGENT
+
+  orderId         String?   @db.VarChar(100)  // id pesanan (boleh kosong kalau manual)
+  flightNumber1   String    @db.VarChar(50)   // pesawat 1
+  flightNumber2   String?   @db.VarChar(50)   // pesawat 2 (opsional)
+
+  airline1        String    @db.VarChar(100)  // maskapai 1
+  airline2        String?   @db.VarChar(100)  // maskapai 2 (opsional)
+
+  ticketNumber    String    @db.VarChar(100)  // nomor tiket
+
+  direction       FlightDirection          // berangkat / pulang
+
+  notes           String?   @db.Text       // kalau mau catatan tambahan (opsional)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([tripId])
+  @@index([participantId])
+  @@index([direction])
+  @@index([role])
 }

@@ -9,7 +9,8 @@ type TrashType =
   | "USER"
   | "FEEDBACK"
   | "GALLERY"
-  | "BADGE";
+  | "BADGE"
+  | "FLIGHT";
 
 type TrashItem = {
   type: TrashType;
@@ -29,6 +30,7 @@ export async function GET() {
       feedbacks,
       galleries,
       badges,
+      flights,
     ] = await Promise.all([
       prisma.trip.findMany({
         where: { deletedAt: { not: null } },
@@ -59,6 +61,10 @@ export async function GET() {
         orderBy: { deletedAt: "desc" },
       }),
       prisma.badgeDefinition.findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+      }),
+      prisma.flight.findMany({
         where: { deletedAt: { not: null } },
         orderBy: { deletedAt: "desc" },
       }),
@@ -112,6 +118,12 @@ export async function GET() {
         id: b.id,
         label: b.name,
         deletedAt: b.deletedAt,
+      })),
+      ...flights.map((f) => ({
+        type: "FLIGHT" as const,
+        id: f.id,
+        label: `${f.passengerName} - ${f.ticketNumber} (Penerbangan)`,
+        deletedAt: f.deletedAt,
       })),
     ];
 
@@ -176,6 +188,12 @@ export async function POST(req: Request) {
           data: { deletedAt: null },
         });
         break;
+      case "FLIGHT":
+        await prisma.flight.update({
+          where: { id },
+          data: { deletedAt: null },
+        });
+        break;
       default:
         return NextResponse.json(
           { ok: false, message: "Invalid type" },
@@ -222,6 +240,9 @@ export async function DELETE(req: Request) {
         break;
       case "BADGE":
         await prisma.badgeDefinition.delete({ where: { id } });
+        break;
+      case "FLIGHT":
+        await prisma.flight.delete({ where: { id } });
         break;
       default:
         return NextResponse.json(

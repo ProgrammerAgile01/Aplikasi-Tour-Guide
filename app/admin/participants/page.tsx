@@ -20,6 +20,7 @@ import {
   Copy,
   Send,
   IdCard,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   Dialog,
@@ -114,6 +115,8 @@ export default function AdminParticipantsPage() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedForDetail, setSelectedForDetail] =
     useState<Participant | null>(null);
+
+  const [exporting, setExporting] = useState(false);
 
   const openDetailDialog = (p: Participant) => {
     setSelectedForDetail(p);
@@ -546,6 +549,76 @@ export default function AdminParticipantsPage() {
     return age >= 0 ? age : null;
   }
 
+  async function handleExportExcel() {
+    if (!selectedTripId) {
+      toast({
+        title: "Pilih Trip Terlebih Dahulu",
+        description: "Silakan pilih trip sebelum export peserta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (filteredParticipants.length === 0) {
+      toast({
+        title: "Tidak Ada Data",
+        description: "Belum ada peserta untuk di-export.",
+      });
+      return;
+    }
+
+    try {
+      setExporting(true);
+
+      const res = await fetch(
+        `/api/participants/export?tripId=${encodeURIComponent(selectedTripId)}`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!res.ok) {
+        let msg = "Gagal mengunduh file Excel peserta";
+        try {
+          const json = await res.json();
+          if (json?.message) msg = json.message;
+        } catch {
+          // ignore
+        }
+        throw new Error(msg);
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+
+      const rawName = currentTrip?.name || "trip";
+      const safeName = rawName.replace(/[\\/:*?"<>|]/g, "_");
+      const filename = `peserta-${safeName}.xlsx`;
+
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Berhasil",
+        description: "File Excel peserta berhasil diunduh.",
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: err.message || "Gagal export data peserta ke Excel",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -682,6 +755,21 @@ export default function AdminParticipantsPage() {
                   <Button
                     type="button"
                     variant="outline"
+                    onClick={handleExportExcel}
+                    disabled={filteredParticipants.length === 0 || exporting}
+                    className="gap-2"
+                  >
+                    {exporting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="w-4 h-4" />
+                    )}
+                    Export Excel
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={openSendAllDialog}
                     disabled={filteredParticipants.length === 0}
                     className="gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
@@ -689,6 +777,7 @@ export default function AdminParticipantsPage() {
                     <Send size={16} />
                     Kirim Akun ke Semua Peserta
                   </Button>
+
                   <Button
                     onClick={() => handleOpenDialog()}
                     className="gap-2 bg-blue-600 hover:bg-blue-700"

@@ -1,4 +1,3 @@
-// app/admin/trash/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -38,7 +37,8 @@ type TrashType =
   | "USER"
   | "FEEDBACK"
   | "GALLERY"
-  | "BADGE";
+  | "BADGE"
+  | "FLIGHT";
 
 interface TrashItem {
   type: TrashType;
@@ -56,6 +56,7 @@ const TYPE_LABELS: Record<TrashType, string> = {
   FEEDBACK: "Feedback",
   GALLERY: "Galeri",
   BADGE: "Badge",
+  FLIGHT: "Penerbangan",
 };
 
 export default function AdminTrashPage() {
@@ -218,8 +219,8 @@ export default function AdminTrashPage() {
             Sampah Data
           </h1>
           <p className="text-slate-600 mt-1">
-            Kelola data yang sudah dihapus. Kamu bisa memulihkan atau
-            menghapus permanen
+            Kelola data yang sudah dihapus. Kamu bisa memulihkan atau menghapus
+            permanen
           </p>
         </div>
         <Button
@@ -268,6 +269,7 @@ export default function AdminTrashPage() {
                   <SelectItem value="FEEDBACK">Feedback</SelectItem>
                   <SelectItem value="GALLERY">Galeri</SelectItem>
                   <SelectItem value="BADGE">Badge</SelectItem>
+                  <SelectItem value="FLIGHT">Penerbangan</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -364,8 +366,8 @@ export default function AdminTrashPage() {
           </div>
           <p className="mt-3 text-xs text-slate-500">
             Catatan: Hapus permanen tidak bisa dibatalkan. Untuk Trip, semua
-            data terkait (jadwal, peserta, presensi, galeri, badge, dll) juga
-            ikut terhapus.
+            data terkait (jadwal, peserta, presensi, galeri, badge, penerbangan,
+            dll) juga ikut terhapus.
           </p>
         </CardContent>
       </Card>

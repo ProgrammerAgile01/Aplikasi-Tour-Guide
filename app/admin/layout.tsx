@@ -22,6 +22,7 @@ import {
   Camera,
   Award,
   Trash2,
+  Plane,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -42,6 +43,7 @@ export default function AdminLayout({
     { name: "Buat Trip", path: "/admin/trips", icon: Map },
     { name: "Jadwal & Itinerary", path: "/admin/schedule", icon: Calendar },
     { name: "Peserta", path: "/admin/participants", icon: Users },
+    { name: "Data Penerbangan", path: "/admin/flights", icon: Plane },
     {
       name: "Absensi & Kehadiran",
       path: "/admin/attendance",
