@@ -31,7 +31,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { refreshSession, user } = useAuth();
 
-  const [identifier, setIdentifier] = useState(""); // username or whatsapp
+  const [identifier, setIdentifier] = useState(""); // username
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -101,7 +101,7 @@ export default function LoginPage() {
           title: "Login Gagal",
           description:
             // json?.message || "Cek kembali username / WhatsApp dan sandi Anda.",
-            "Cek kembali username / no WhatsApp dan sandi Anda.",
+            "Cek kembali username dan kata sandi Anda.",
           variant: "destructive",
         });
         return;
@@ -167,12 +167,12 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Username atau Nomor WhatsApp</Label>
+              <Label htmlFor="identifier">Username</Label>
               <Input
                 id="identifier"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="username atau nomor whatsapp anda"
+                placeholder="masukkan username Anda"
                 className="h-11"
                 required
               />

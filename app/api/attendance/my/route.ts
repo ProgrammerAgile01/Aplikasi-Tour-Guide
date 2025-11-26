@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
     const userId = String(auth.user?.id ?? "");
     const userUsername = String(auth.user?.username ?? "");
-    const userWhatsapp = String(auth.user?.whatsapp ?? "");
+    // const userWhatsapp = String(auth.user?.whatsapp ?? "");
 
     if (!userId) {
       return NextResponse.json(
@@ -57,16 +57,17 @@ export async function GET(req: Request) {
     let participantId: string | null = userTrip.participantId ?? null;
 
     // 2. Kalau participantId belum keisi (data lama),
-    //     fallback cari Participant via username/whatsapp
+    //     fallback cari Participant via username
     if (!participantId) {
       const participant = await prisma.participant.findFirst({
         where: {
           tripId,
           deletedAt: null,
-          OR: [
-            userUsername ? { loginUsername: userUsername } : undefined,
-            userWhatsapp ? { whatsapp: userWhatsapp } : undefined,
-          ].filter(Boolean) as any,
+          loginUsername:userUsername,
+          // OR: [
+          //   userUsername ? { loginUsername: userUsername } : undefined,
+          //   userWhatsapp ? { whatsapp: userWhatsapp } : undefined,
+          // ].filter(Boolean) as any,
         },
         select: { id: true },
       });

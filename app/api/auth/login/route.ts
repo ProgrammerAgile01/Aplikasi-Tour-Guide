@@ -15,10 +15,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Cari User berdasarkan username / whatsapp
+    // Cari User berdasarkan username
     const user = await prisma.user.findFirst({
       where: {
-        OR: [{ username: identifier }, { whatsapp: identifier }], deletedAt: null
+        username: identifier,
+        deletedAt: null,
       },
     });
 
@@ -50,10 +51,11 @@ export async function POST(req: Request) {
       include: { trip: true },
     });
 
-    // Ambil semua Participant yang match dengan user ini (berdasarkan username / whatsapp) untuk semua trip
+    // Ambil semua Participant yang match dengan user ini berdasarkan username untuk semua trip
     const participants = await prisma.participant.findMany({
       where: {
-        OR: [{ loginUsername: user.username }, { whatsapp: user.whatsapp }], deletedAt: null
+        loginUsername: user.username,
+        deletedAt: null,
       },
       select: {
         id: true,

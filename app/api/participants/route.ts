@@ -11,7 +11,7 @@ const CreateParticipantSchema = z.object({
   note: z.string().trim().optional().or(z.literal("").optional()),
   nik: z.string().trim().optional().or(z.literal("").optional()),
   birthPlace: z.string().trim().optional().or(z.literal("").optional()),
-  birthDate: z.string().trim().optional().or(z.literal("").optional()), // kirim "YYYY-MM-DD" dari input type="date"
+  birthDate: z.string().trim().optional().or(z.literal("").optional()), // "YYYY-MM-DD"
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   roomNumber: z.string().trim().optional().or(z.literal("").optional()),
   tripId: z.string().trim().min(1),
@@ -105,45 +105,25 @@ export async function POST(req: Request) {
         ? new Date(data.birthDate)
         : null;
 
-    // ==================== USER & PARTICIPANT ====================
+    // ==================== USER BARU SELALU ====================
 
-    // Cek user by whatsapp
-    let user = await prisma.user
-      .findUnique({ where: { whatsapp: data.whatsapp } })
-      .catch(() => null);
+    const username = generateUsernameFromName(data.name);
+    const rawPassword = generateRandomPassword(10);
+    const hashed = await bcrypt.hash(rawPassword, 10);
 
-    let plainPassword: string | undefined;
-    let loginUsernameForParticipant: string | undefined;
+    const user = await prisma.user.create({
+      data: {
+        username,
+        password: hashed,
+        name: data.name,
+        whatsapp: data.whatsapp, // boleh sama dengan user lain, tidak unique
+        role: "PESERTA",
+        isActive: true,
+      },
+    });
 
-    if (user) {
-      // User sudah ada → update nama/whatsapp bila perlu
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { name: data.name, whatsapp: data.whatsapp },
-      });
-    } else {
-      // Buat user baru + password awal
-      const username = generateUsernameFromName(data.name);
-      const rawPassword = generateRandomPassword(10);
-      const hashed = await bcrypt.hash(rawPassword, 10);
+    // ==================== PARTICIPANT ====================
 
-      const createdUser = await prisma.user.create({
-        data: {
-          username,
-          password: hashed,
-          name: data.name,
-          whatsapp: data.whatsapp,
-          role: "PESERTA",
-          isActive: true,
-        },
-      });
-
-      user = createdUser;
-      plainPassword = rawPassword;
-      loginUsernameForParticipant = username;
-    }
-
-    // Buat participant
     const createdParticipant = await prisma.participant.create({
       data: {
         name: data.name,
@@ -162,46 +142,40 @@ export async function POST(req: Request) {
             ? data.roomNumber
             : null,
         tripId: data.tripId,
-        ...(plainPassword && loginUsernameForParticipant
-          ? {
-              loginUsername: loginUsernameForParticipant,
-              initialPassword: plainPassword, // SIMPAN PASSWORD AWAL
-            }
-          : {}),
+
+        // selalu link ke username user yang baru dibuat
+        loginUsername: username,
+        // simpan password awal untuk nanti dikirim via WA / ditampilkan ke admin
+        initialPassword: rawPassword,
       },
     });
 
-    // Pastikan relasi UserTrip (user ↔ trip)
-    const link = await prisma.userTrip.findUnique({
-      where: { userId_tripId: { userId: user!.id, tripId: data.tripId } },
+    // ==================== USERTRIP LINK ====================
+
+    await prisma.userTrip.create({
+      data: {
+        userId: user.id,
+        tripId: data.tripId,
+        roleOnTrip: "PESERTA",
+        participantId: createdParticipant.id,
+      },
     });
-    if (!link) {
-      await prisma.userTrip.create({
-        data: {
-          userId: user!.id,
-          tripId: data.tripId,
-          roleOnTrip: "PESERTA",
-          participantId: createdParticipant.id,
-        },
-      });
-    }
 
     const userResp = {
-      id: user!.id,
-      username: user!.username,
-      name: user!.name,
-      whatsapp: user!.whatsapp,
-      role: user!.role,
-      isActive: user!.isActive,
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      whatsapp: user.whatsapp,
+      role: user.role,
+      isActive: user.isActive,
     };
 
     // TIDAK kirim WA di sini — kirimnya lewat endpoint khusus send-credentials
-
     return NextResponse.json(
       {
         ok: true,
         participant: createdParticipant,
-        user: { ...userResp, plainPassword },
+        user: { ...userResp, plainPassword: rawPassword },
       },
       { status: 201 }
     );

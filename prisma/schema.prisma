@@ -167,7 +167,7 @@ model User {
   username   String   @unique
   password   String
   name       String
-  whatsapp   String   @unique
+  whatsapp   String
   role       String
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
