@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-client";
+import { RegisterSW } from "@/components/pwa/register-sw";
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
@@ -12,6 +13,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Teman Wisata",
   description: "Aplikasi pemandu wisata eksekutif",
+  manifest: "/manifest.json",
   icons: {
     icon: [
       {
@@ -35,6 +37,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className={`font-sans antialiased`}>
+        <RegisterSW />
         <AuthProvider>{children}</AuthProvider>
         <Toaster />
         <Analytics />
