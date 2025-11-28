@@ -12,12 +12,19 @@ const UpdateBodySchema = z.object({
 });
 
 function mapGallery(row: any) {
+  const isAdmin = !!row.uploaderUserId;
+
   return {
     id: row.id,
     tripId: row.tripId,
-    participantId: row.participantId,
-    participantName: row.participant.name,
-    participantWhatsapp: row.participant.whatsapp,
+
+    participantId: row.participantId ?? null,
+    participantName: row.participant?.name ?? null,
+    participantWhatsapp: row.participant?.whatsapp ?? null,
+
+    uploaderUserId: row.uploaderUserId ?? null,
+    uploaderName: row.uploaderName ?? null,
+
     sessionId: row.sessionId,
     sessionTitle: row.session.title,
     sessionLocation: row.session.location,

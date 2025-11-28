@@ -20,8 +20,8 @@ export function createAuthCookie(token: string) {
   // cookie options
   const secure = process.env.NODE_ENV === "production";
   // Set-Cookie string (httpOnly)
-  // Max-Age is derived from JWT_EXPIRES_IN if simple; use 7 days default
-  const maxAge = 60 * 60 * 24 * 7; // 7 days
+  // Max-Age is derived from JWT_EXPIRES_IN if simple; use 1 hours default
+  const maxAge = 60 * 60 * 1; // 1 hours
   return `token=${token}; Path=/; HttpOnly; Max-Age=${maxAge}; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
 

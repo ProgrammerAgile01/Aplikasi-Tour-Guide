@@ -23,15 +23,27 @@ async function resolveId(req: Request, params: any) {
 
 // Helper: ubah Prisma data → bentuk UI
 function toClient(g: any, currentParticipantId: string | null) {
+  const isAdminUpload = !!g.uploaderUserId;
+
+  let uploadedBy: string;
+  if (isAdminUpload) {
+    // uploadedBy = g.uploaderName ? `Admin – ${g.uploaderName}` : "Admin";
+    uploadedBy = g.uploaderName ? `TL Agent – ${g.uploaderName}` : "TL Agent";
+  } else if (g.participant?.name) {
+    uploadedBy = g.participant.name;
+  } else {
+    uploadedBy = "Peserta";
+  }
+
   return {
     id: g.id,
     src: g.imageUrl,
     caption: g.note ?? "",
-    uploadedBy: g.participant?.name ?? "Peserta",
+    uploadedBy,
     uploadedAt: g.createdAt.toISOString(),
     location: g.session?.location ?? "",
     status: g.status,
-    isMine: g.participantId === currentParticipantId,
+    isMine: !isAdminUpload && g.participantId === currentParticipantId,
   };
 }
 
@@ -72,7 +84,7 @@ export async function GET(req: Request, { params }: { params: any }) {
           tripId,
           participantId: currentParticipantId,
           status: "PENDING",
-          deletedAt: null
+          deletedAt: null,
         },
         include: { participant: true, session: true },
       });

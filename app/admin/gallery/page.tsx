@@ -10,14 +10,13 @@ import { toast } from "@/hooks/use-toast";
 import {
   Search,
   Map,
-  Users,
   ImageIcon,
   Plus,
-  Pencil,
   Trash2,
   Loader2,
   Camera,
   CheckCircle2,
+  // Pencil, // edit dikomentar dulu
 } from "lucide-react";
 import {
   Dialog,
@@ -42,12 +41,6 @@ interface Trip {
   createdAt?: string;
 }
 
-interface Participant {
-  id: string;
-  name: string;
-  whatsapp: string;
-}
-
 interface Session {
   id: string;
   title: string;
@@ -61,9 +54,12 @@ type GalleryStatus = "PENDING" | "APPROVED";
 interface GalleryItem {
   id: string;
   tripId: string;
-  participantId: string;
-  participantName: string;
-  participantWhatsapp: string;
+
+  // bisa ada kalau foto dari peserta
+  participantId?: string | null;
+  participantName?: string | null;
+  participantWhatsapp?: string | null;
+
   sessionId: string;
   sessionTitle: string;
   sessionLocation?: string | null;
@@ -73,7 +69,7 @@ interface GalleryItem {
   createdAt?: string | Date;
 }
 
-const pageSize = 10; // jumlah galeri per halaman
+const pageSize = 10;
 
 function formatDateTime(value?: string | Date) {
   if (!value) return "-";
@@ -108,12 +104,10 @@ export default function AdminGalleryPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>("");
 
-  const [participants, setParticipants] = useState<Participant[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [items, setItems] = useState<GalleryItem[]>([]);
 
   const [loadingTrips, setLoadingTrips] = useState(false);
-  const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingGallery, setLoadingGallery] = useState(false);
 
@@ -123,36 +117,33 @@ export default function AdminGalleryPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<{
-    participantId: string;
     sessionId: string;
     note: string;
-    imageUrl: string;
   }>({
-    participantId: "",
     sessionId: "",
     note: "",
-    imageUrl: "",
   });
 
-  // mode gambar: url / file
-  const [imageMode, setImageMode] = useState<"url" | "file">("url");
+  // hanya upload file
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingItem, setDeletingItem] = useState<{
     id: string;
-    participantName?: string;
+    label?: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [previewItem, setPreviewItem] = useState<{
     imageUrl: string;
     sessionTitle?: string;
-    participantName?: string;
+    note?: string | null;
+    uploadedLabel?: string;
+    uploadedAt?: string | Date;
   } | null>(null);
 
-  // pagination state
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -162,16 +153,13 @@ export default function AdminGalleryPage() {
   useEffect(() => {
     if (selectedTripId) {
       loadGallery(selectedTripId);
-      loadParticipants(selectedTripId);
       loadSessions(selectedTripId);
     } else {
       setItems([]);
-      setParticipants([]);
       setSessions([]);
     }
   }, [selectedTripId]);
 
-  // reset halaman jika search berubah
   useEffect(() => {
     setPage(1);
   }, [searchQuery]);
@@ -185,7 +173,6 @@ export default function AdminGalleryPage() {
         throw new Error(json?.message || "Gagal memuat trips");
 
       const items: Trip[] = json.items ?? json.data ?? [];
-
       setTrips(items);
 
       if (!selectedTripId && items.length > 0) {
@@ -213,7 +200,7 @@ export default function AdminGalleryPage() {
       if (!res.ok || !json?.ok)
         throw new Error(json?.message || "Gagal memuat galeri");
       setItems(json.items ?? []);
-      setPage(1); // reset halaman saat trip berganti / reload galeri
+      setPage(1);
     } catch (err: any) {
       console.error(err);
       toast({
@@ -223,28 +210,6 @@ export default function AdminGalleryPage() {
       });
     } finally {
       setLoadingGallery(false);
-    }
-  }
-
-  async function loadParticipants(tripId: string) {
-    setLoadingParticipants(true);
-    try {
-      const res = await fetch(
-        `/api/participants?tripId=${encodeURIComponent(tripId)}`
-      );
-      const json = await res.json();
-      if (!res.ok || !json?.ok)
-        throw new Error(json?.message || "Gagal memuat peserta");
-      setParticipants(json.items ?? json.data ?? []);
-    } catch (err: any) {
-      console.error(err);
-      toast({
-        title: "Error",
-        description: err.message || "Gagal memuat peserta",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingParticipants(false);
     }
   }
 
@@ -270,39 +235,6 @@ export default function AdminGalleryPage() {
     }
   }
 
-  async function createGalleryApi(payload: {
-    participantId: string;
-    sessionId: string;
-    note?: string;
-    imageUrl: string;
-  }) {
-    const res = await fetch("/api/galleries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return res.json();
-  }
-
-  async function updateGalleryApi(
-    id: string,
-    payload: { note?: string; imageUrl?: string; status?: GalleryStatus }
-  ) {
-    const res = await fetch(`/api/galleries/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return res.json();
-  }
-
-  async function deleteGalleryApi(id: string) {
-    const res = await fetch(`/api/galleries/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
-    return res.json();
-  }
-
   async function uploadImageFile(file: File): Promise<string> {
     const formDataUpload = new FormData();
     formDataUpload.append("file", file);
@@ -319,19 +251,41 @@ export default function AdminGalleryPage() {
     return json.url as string;
   }
 
+  async function createGalleryApi(payload: {
+    sessionId: string;
+    note?: string;
+    imageUrl: string;
+  }) {
+    // ⚠️ di backend kita akan anggap request dari admin
+    // dan isi: tripId dari sessionId, uploader admin, participantId boleh null.
+    const res = await fetch("/api/galleries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  }
+
+  async function deleteGalleryApi(id: string) {
+    const res = await fetch(`/api/galleries/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    return res.json();
+  }
+
   const filteredItems = items.filter((item) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
+
     return (
-      item.participantName.toLowerCase().includes(q) ||
-      item.participantWhatsapp.toLowerCase().includes(q) ||
+      (item.participantName || "").toLowerCase().includes(q) ||
+      (item.participantWhatsapp || "").toLowerCase().includes(q) ||
       (item.sessionTitle || "").toLowerCase().includes(q) ||
       (item.sessionLocation || "").toLowerCase().includes(q) ||
       (item.note || "").toLowerCase().includes(q)
     );
   });
 
-  // pagination client-side
   const totalFiltered = filteredItems.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -341,7 +295,11 @@ export default function AdminGalleryPage() {
 
   const stats = {
     total: filteredItems.length,
-    uniqueParticipants: new Set(filteredItems.map((i) => i.participantId)).size,
+    uniqueParticipants: new Set(
+      filteredItems
+        .map((i) => i.participantId)
+        .filter((id): id is string => !!id)
+    ).size,
     today: filteredItems.filter((i) => {
       if (!i.createdAt) return false;
       const d = new Date(i.createdAt);
@@ -365,25 +323,22 @@ export default function AdminGalleryPage() {
     }
 
     if (item) {
+      // edit belum dipakai, tapi state dibikin aman kalau nanti diaktifkan
       setEditingId(item.id);
       setFormData({
-        participantId: item.participantId,
         sessionId: item.sessionId,
         note: item.note ?? "",
-        imageUrl: item.imageUrl ?? "",
       });
-      setImageMode("url");
       setImageFile(null);
+      setImagePreviewUrl(null);
     } else {
       setEditingId(null);
       setFormData({
-        participantId: "",
         sessionId: "",
         note: "",
-        imageUrl: "",
       });
-      setImageMode("url");
       setImageFile(null);
+      setImagePreviewUrl(null);
     }
 
     setIsDialogOpen(true);
@@ -393,21 +348,28 @@ export default function AdminGalleryPage() {
     setIsDialogOpen(false);
     setEditingId(null);
     setFormData({
-      participantId: "",
       sessionId: "",
       note: "",
-      imageUrl: "",
     });
-    setImageMode("url");
     setImageFile(null);
+    setImagePreviewUrl(null);
     setIsSaving(false);
   }
 
   async function handleSubmit() {
-    if (!formData.participantId || !formData.sessionId) {
+    if (!formData.sessionId) {
       toast({
         title: "Data Tidak Lengkap",
-        description: "Peserta dan sesi wajib diisi.",
+        description: "Sesi / agenda wajib dipilih.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!imageFile) {
+      toast({
+        title: "Gambar Belum Dipilih",
+        description: "Silakan pilih file gambar terlebih dahulu.",
         variant: "destructive",
       });
       return;
@@ -416,60 +378,25 @@ export default function AdminGalleryPage() {
     try {
       setIsSaving(true);
 
-      let finalImageUrl = (formData.imageUrl ?? "").trim();
+      // 1) upload file → dapat URL public
+      const finalImageUrl = await uploadImageFile(imageFile);
 
-      if (imageMode === "file") {
-        if (!imageFile) {
-          toast({
-            title: "Gambar Belum Dipilih",
-            description: "Silakan pilih file gambar terlebih dahulu.",
-            variant: "destructive",
-          });
-          setIsSaving(false);
-          return;
-        }
-        finalImageUrl = await uploadImageFile(imageFile);
-      }
+      // 2) create gallery sebagai foto admin
+      const json = await createGalleryApi({
+        sessionId: formData.sessionId,
+        note: formData.note || undefined,
+        imageUrl: finalImageUrl,
+      });
 
-      if (!finalImageUrl) {
-        toast({
-          title: "Gambar Kosong",
-          description: "URL atau file gambar wajib diisi.",
-          variant: "destructive",
-        });
-        setIsSaving(false);
-        return;
-      }
+      if (!json.ok) throw new Error(json.message || "Gagal menyimpan galeri");
 
-      if (editingId) {
-        const json = await updateGalleryApi(editingId, {
-          note: formData.note || undefined,
-          imageUrl: finalImageUrl,
-        });
-        if (!json.ok) throw new Error(json.message || "Gagal update galeri");
+      // tambahkan ke list (gabungan peserta + admin)
+      setItems((prev) => [json.item, ...prev]);
+      toast({
+        title: "Galeri Ditambahkan",
+        description: "Foto berhasil ditambahkan.",
+      });
 
-        setItems((prev) =>
-          prev.map((x) => (x.id === editingId ? json.item : x))
-        );
-        toast({
-          title: "Galeri Diperbarui",
-          description: "Data galeri berhasil diperbarui.",
-        });
-      } else {
-        const json = await createGalleryApi({
-          participantId: formData.participantId,
-          sessionId: formData.sessionId,
-          note: formData.note || undefined,
-          imageUrl: finalImageUrl,
-        });
-        if (!json.ok) throw new Error(json.message || "Gagal menambah galeri");
-
-        setItems((prev) => [json.item, ...prev]);
-        toast({
-          title: "Galeri Ditambahkan",
-          description: "Foto galeri baru berhasil ditambahkan.",
-        });
-      }
       handleCloseDialog();
     } catch (err: any) {
       console.error(err);
@@ -482,7 +409,7 @@ export default function AdminGalleryPage() {
     }
   }
 
-  function openDeleteModal(item: { id: string; participantName?: string }) {
+  function openDeleteModal(item: { id: string; label?: string }) {
     setDeletingItem(item);
     setDeleteDialogOpen(true);
   }
@@ -497,9 +424,7 @@ export default function AdminGalleryPage() {
       setItems((prev) => prev.filter((x) => x.id !== deletingItem.id));
       toast({
         title: "Galeri Dihapus",
-        description: `Galeri peserta "${
-          deletingItem.participantName ?? ""
-        }" berhasil dihapus.`,
+        description: `Foto galeri berhasil dihapus.`,
       });
       setDeleteDialogOpen(false);
       setDeletingItem(null);
@@ -522,7 +447,12 @@ export default function AdminGalleryPage() {
 
   async function handleApprove(id: string) {
     try {
-      const json = await updateGalleryApi(id, { status: "APPROVED" });
+      const res = await fetch(`/api/galleries/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "APPROVED" as GalleryStatus }),
+      });
+      const json = await res.json();
       if (!json.ok) throw new Error(json.message || "Gagal menyetujui galeri");
 
       setItems((prev) => prev.map((x) => (x.id === id ? json.item : x)));
@@ -546,7 +476,7 @@ export default function AdminGalleryPage() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Galeri</h1>
           <p className="text-slate-600 mt-1">
-            Kelola dokumentasi foto perjalanan peserta.
+            Kelola dokumentasi foto perjalanan
           </p>
         </div>
       </div>
@@ -556,7 +486,7 @@ export default function AdminGalleryPage() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
             <Map className="text-blue-600" size={20} />
-            <div className="flex-1">
+            <div>
               <Label
                 htmlFor="trip-select"
                 className="text-sm font-medium text-slate-700 mb-2 block"
@@ -567,7 +497,10 @@ export default function AdminGalleryPage() {
                 value={selectedTripId}
                 onValueChange={(v) => setSelectedTripId(v)}
               >
-                <SelectTrigger id="trip-select" className="w-full">
+                <SelectTrigger
+                  id="trip-select"
+                  className="w-full h-auto min-h-10 whitespace-normal text-left"
+                >
                   <SelectValue
                     placeholder={
                       loadingTrips
@@ -624,7 +557,7 @@ export default function AdminGalleryPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <Users className="w-5 h-5 text-emerald-600" />
+                    <ImageIcon className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-slate-900">
@@ -681,9 +614,9 @@ export default function AdminGalleryPage() {
                 <Button
                   onClick={() => handleOpenDialog()}
                   className="gap-2 bg-blue-600 hover:bg-blue-700"
-                  disabled={loadingParticipants || loadingSessions}
+                  disabled={loadingSessions}
                 >
-                  <Plus size={16} /> Tambah Foto
+                  <Plus size={16} /> Upload Foto Admin
                 </Button>
               </div>
             </CardHeader>
@@ -699,111 +632,135 @@ export default function AdminGalleryPage() {
                     Belum ada foto galeri untuk trip ini.
                   </p>
                 ) : (
-                  pagedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="border border-slate-200 rounded-xl p-3 shadow-sm bg-white"
-                    >
-                      <div className="flex gap-3">
-                        {/* thumbnail */}
-                        <div className="w-24 h-20 flex-shrink-0">
-                          {item.imageUrl ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setPreviewItem({
-                                  imageUrl: item.imageUrl,
-                                  sessionTitle: item.sessionTitle,
-                                  participantName: item.participantName,
-                                })
-                              }
-                              className="block w-full h-full focus:outline-none cursor-pointer"
-                            >
-                              <img
-                                src={item.imageUrl}
-                                alt={item.sessionTitle}
-                                className="w-full h-full object-cover rounded-lg border border-slate-200"
-                              />
-                            </button>
-                          ) : (
-                            <div className="w-full h-full border border-dashed border-slate-200 rounded-lg flex items-center justify-center text-slate-300">
-                              <ImageIcon className="w-5 h-5" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* content */}
-                        <div className="flex-1 space-y-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                {item.participantName}
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                {item.participantWhatsapp}
-                              </p>
-                            </div>
-                            {/* {renderStatusBadge(item.status)} */}
-                          </div>
-
-                          <div className="text-xs text-slate-600 mt-1">
-                            <p className="font-medium text-slate-900">
-                              {item.sessionTitle}
-                            </p>
-                            {item.sessionLocation && (
-                              <p className="text-slate-500">
-                                {item.sessionLocation}
-                              </p>
+                  pagedItems.map((item) => {
+                    const isAdminPhoto = !item.participantId;
+                    return (
+                      <div
+                        key={item.id}
+                        className="border border-slate-200 rounded-xl p-3 shadow-sm bg-white"
+                      >
+                        <div className="flex gap-3">
+                          {/* thumbnail */}
+                          <div className="w-24 h-20 flex-shrink-0">
+                            {item.imageUrl ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewItem({
+                                    imageUrl: item.imageUrl,
+                                    sessionTitle: item.sessionTitle,
+                                    note: item.note,
+                                    uploadedLabel: isAdminPhoto
+                                      ? "Foto official admin"
+                                      : item.participantName || undefined,
+                                    uploadedAt: item.createdAt,
+                                  })
+                                }
+                                className="block w-full h-full focus:outline-none cursor-pointer"
+                              >
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.sessionTitle}
+                                  className="w-full h-full object-cover rounded-lg border border-slate-200"
+                                />
+                              </button>
+                            ) : (
+                              <div className="w-full h-full border border-dashed border-slate-200 rounded-lg flex items-center justify-center text-slate-300">
+                                <ImageIcon className="w-5 h-5" />
+                              </div>
                             )}
                           </div>
 
-                          {item.note && (
-                            <p className="text-xs text-slate-600 mt-1">
-                              {item.note}
+                          {/* content */}
+                          <div className="flex-1 space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                {isAdminPhoto ? (
+                                  <>
+                                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                                      Foto Official Admin
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-sm font-semibold text-slate-900">
+                                      {item.participantName}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      {item.participantWhatsapp}
+                                    </p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="text-xs text-slate-600 mt-1">
+                              <p className="font-medium text-slate-900">
+                                {item.sessionTitle}
+                              </p>
+                              {item.sessionLocation && (
+                                <p className="text-slate-500">
+                                  {item.sessionLocation}
+                                </p>
+                              )}
+                            </div>
+
+                            {item.note && (
+                              <p className="text-xs text-slate-600 mt-1">
+                                {item.note}
+                              </p>
+                            )}
+
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              {formatDateTime(item.createdAt)}
                             </p>
-                          )}
 
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            {formatDateTime(item.createdAt)}
-                          </p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {/* {item.status === "PENDING" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleApprove(item.id)}
+                                  className="h-8 px-2 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" /> Setujui
+                                </Button>
+                              )} */}
 
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {item.status === "PENDING" && (
+                              {/* Tombol edit di-comment dulu */}
+                              {/*
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleApprove(item.id)}
-                                className="h-8 px-2 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                onClick={() => handleOpenDialog(item)}
+                                className="h-8 px-2 text-xs gap-1"
                               >
-                                <CheckCircle2 className="w-3 h-3" /> Setujui
+                                <Pencil className="w-3 h-3" /> Edit
                               </Button>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenDialog(item)}
-                              className="h-8 px-2 text-xs gap-1"
-                            >
-                              <Pencil className="w-3 h-3" /> Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                openDeleteModal({
-                                  id: item.id,
-                                  participantName: item.participantName,
-                                })
-                              }
-                              className="h-8 px-2 text-xs gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-3 h-3" /> Hapus
-                            </Button>
+                              */}
+
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  openDeleteModal({
+                                    id: item.id,
+                                    label:
+                                      item.sessionTitle ||
+                                      item.participantName ||
+                                      undefined,
+                                  })
+                                }
+                                className="h-8 px-2 text-xs gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3 h-3" /> Hapus
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
@@ -813,7 +770,7 @@ export default function AdminGalleryPage() {
                   <thead>
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Peserta
+                        Nama
                       </th>
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Agenda
@@ -827,12 +784,12 @@ export default function AdminGalleryPage() {
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Gambar
                       </th>
-                      {/* <th className="text-left py-3 px-4 font-semibold text-slate-700">
-                        Status
-                      </th> */}
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Waktu Upload
                       </th>
+                      {/* <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                        Status
+                      </th> */}
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Aksi
                       </th>
@@ -858,108 +815,129 @@ export default function AdminGalleryPage() {
                         </td>
                       </tr>
                     ) : (
-                      pagedItems.map((item) => (
-                        <tr
-                          key={item.id}
-                          className="border-b border-slate-100 hover:bg-slate-50"
-                        >
-                          <td className="py-3 px-4 align-top">
-                            <div className="flex flex-col">
-                              <span className="font-medium text-slate-900">
-                                {item.participantName}
-                              </span>
-                              <span className="text-xs text-slate-500">
-                                {item.participantWhatsapp}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-slate-900 align-top">
-                            {item.sessionTitle}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-slate-600 align-top">
-                            {item.sessionLocation || (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-sm text-slate-700 align-top max-w-xs">
-                            {item.note || (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 align-top">
-                            {item.imageUrl ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPreviewItem({
-                                    imageUrl: item.imageUrl,
-                                    sessionTitle: item.sessionTitle,
-                                    participantName: item.participantName,
-                                  })
-                                }
-                                className="inline-block focus:outline-none cursor-pointer"
-                              >
-                                <img
-                                  src={item.imageUrl}
-                                  alt={item.sessionTitle}
-                                  className="h-16 w-24 rounded object-cover border border-slate-200"
-                                />
-                              </button>
-                            ) : (
-                              <div className="h-16 w-24 border border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
-                                <ImageIcon className="w-4 h-4" />
-                              </div>
-                            )}
-                          </td>
-                          {/* <td className="py-3 px-4 align-top">
-                            {renderStatusBadge(item.status)}
-                          </td> */}
-                          <td className="py-3 px-4 text-sm text-slate-600 align-top whitespace-nowrap">
-                            {formatDateTime(item.createdAt)}
-                          </td>
-                          <td className="py-3 px-4 align-top">
-                            <div className="flex gap-2">
-                              {item.status === "PENDING" && (
+                      pagedItems.map((item) => {
+                        const isAdminPhoto = !item.participantId;
+                        return (
+                          <tr
+                            key={item.id}
+                            className="border-b border-slate-100 hover:bg-slate-50"
+                          >
+                            <td className="py-3 px-4 align-top">
+                              {isAdminPhoto ? (
+                                <span className="inline-flex items-center text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                  Foto Official Admin
+                                </span>
+                              ) : (
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-slate-900">
+                                    {item.participantName}
+                                  </span>
+                                  <span className="text-xs text-slate-500">
+                                    {item.participantWhatsapp}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-slate-900 align-top">
+                              {item.sessionTitle}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-slate-600 align-top">
+                              {item.sessionLocation || (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-slate-700 align-top max-w-xs">
+                              {item.note || (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 align-top">
+                              {item.imageUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviewItem({
+                                      imageUrl: item.imageUrl,
+                                      sessionTitle: item.sessionTitle,
+                                      note: item.note,
+                                      uploadedLabel: isAdminPhoto
+                                        ? "Foto official admin"
+                                        : item.participantName || undefined,
+                                      uploadedAt: item.createdAt,
+                                    })
+                                  }
+                                  className="inline-block focus:outline-none cursor-pointer"
+                                >
+                                  <img
+                                    src={item.imageUrl}
+                                    alt={item.sessionTitle}
+                                    className="h-16 w-24 rounded object-cover border border-slate-200"
+                                  />
+                                </button>
+                              ) : (
+                                <div className="h-16 w-24 border border-dashed border-slate-200 rounded flex items-center justify-center text-slate-300 text-xs">
+                                  <ImageIcon className="w-4 h-4" />
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-slate-600 align-top whitespace-nowrap">
+                              {formatDateTime(item.createdAt)}
+                            </td>
+                            {/* <td className="py-3 px-4 align-top">
+                              {renderStatusBadge(item.status)}
+                            </td> */}
+                            <td className="py-3 px-4 align-top">
+                              <div className="flex gap-2">
+                                {/* {item.status === "PENDING" && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleApprove(item.id)}
+                                    className="gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                  >
+                                    <CheckCircle2 size={14} /> Setujui
+                                  </Button>
+                                )} */}
+
+                                {/* Tombol Edit di-comment sementara */}
+                                {/*
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => handleApprove(item.id)}
-                                  className="gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                  onClick={() => handleOpenDialog(item)}
+                                  className="gap-1"
                                 >
-                                  <CheckCircle2 size={14} /> Setujui
+                                  <Pencil size={14} /> Edit
                                 </Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleOpenDialog(item)}
-                                className="gap-1"
-                              >
-                                <Pencil size={14} /> Edit
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  openDeleteModal({
-                                    id: item.id,
-                                    participantName: item.participantName,
-                                  })
-                                }
-                                className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 size={14} /> Hapus
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                */}
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    openDeleteModal({
+                                      id: item.id,
+                                      label:
+                                        item.sessionTitle ||
+                                        item.participantName ||
+                                        undefined,
+                                    })
+                                  }
+                                  className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 size={14} /> Hapus
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
 
-              {/* Pagination controls */}
+              {/* Pagination */}
               {filteredItems.length > 0 && (
                 <div className="flex flex-col md:flex-row items-center justify-between gap-3 mt-4 text-sm text-slate-600">
                   <div>
@@ -1018,48 +996,21 @@ export default function AdminGalleryPage() {
         </Card>
       )}
 
-      {/* Dialog create/edit */}
+      {/* Dialog upload foto admin */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>
-              {editingId ? "Edit Foto Galeri" : "Tambah Foto Galeri"}
+              {editingId ? "Edit Foto Galeri" : "Upload Foto Admin"}
             </DialogTitle>
             <DialogDescription>
               {editingId
-                ? "Perbarui informasi galeri di bawah ini."
-                : "Masukkan informasi foto galeri baru di bawah ini."}
+                ? "Form edit tersedia, namun tombol edit sedang dinonaktifkan di daftar."
+                : "Upload foto official admin untuk dokumentasi perjalanan."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Peserta *</Label>
-              <Select
-                value={formData.participantId}
-                onValueChange={(v) =>
-                  setFormData((prev) => ({ ...prev, participantId: v }))
-                }
-                disabled={!!editingId}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      loadingParticipants
-                        ? "Memuat peserta..."
-                        : "Pilih peserta"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {participants.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.whatsapp})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
+            {/* Sesi / agenda */}
             <div className="space-y-2">
               <Label>Sesi / Agenda *</Label>
               <Select
@@ -1067,7 +1018,6 @@ export default function AdminGalleryPage() {
                 onValueChange={(v) =>
                   setFormData((prev) => ({ ...prev, sessionId: v }))
                 }
-                disabled={!!editingId}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -1079,83 +1029,92 @@ export default function AdminGalleryPage() {
                 <SelectContent>
                   {sessions.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
-                      {s.title}
-                      {s.location ? ` — ${s.location}` : ""}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{s.title}</span>
+                        {s.location && (
+                          <span className="text-[10px] text-slate-500">
+                            {s.location}
+                          </span>
+                        )}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Sumber gambar: URL / Upload */}
+            {/* Upload file dengan preview */}
             <div className="space-y-2">
-              <Label>Sumber Gambar *</Label>
-              <div className="flex gap-2 mb-2">
-                <Button
-                  type="button"
-                  variant={imageMode === "url" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setImageMode("url")}
-                >
-                  Pakai URL
-                </Button>
-                <Button
-                  type="button"
-                  variant={imageMode === "file" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setImageMode("file")}
-                >
-                  Upload File
-                </Button>
-              </div>
-
-              {imageMode === "url" ? (
-                <>
-                  <Input
-                    key="image-url-input"
-                    placeholder="https://contoh.com/foto.jpg atau /uploads/foto.jpg"
-                    value={formData.imageUrl ?? ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        imageUrl: e.target.value,
-                      }))
-                    }
-                  />
-                  <p className="text-xs text-slate-500">
-                    Masukkan URL penuh atau path gambar yang sudah tersedia.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Input
-                    key="image-file-input"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      setImageFile(file);
-                    }}
-                  />
-                  <p className="text-xs text-slate-500">
-                    File akan diupload ke server dan disimpan sebagai URL
-                    otomatis.
-                  </p>
-                  {imageFile && (
-                    <p className="text-xs text-slate-600 mt-1">
-                      File terpilih:{" "}
-                      <span className="font-medium">{imageFile.name}</span>
+              <Label>Foto (Upload) *</Label>
+              <div className="border border-dashed border-slate-300 rounded-lg p-4 bg-slate-50 flex flex-col items-center justify-center gap-3">
+                {imagePreviewUrl ? (
+                  <div className="w-full">
+                    <div className="relative w-full">
+                      <img
+                        src={imagePreviewUrl}
+                        alt="Preview"
+                        className="w-full max-h-64 object-cover rounded-md border border-slate-200"
+                      />
+                      <button
+                        type="button"
+                        className="absolute top-2 right-2 bg-white/80 text-red-600 text-xs px-2 py-1 rounded shadow hover:bg-white"
+                        onClick={() => {
+                          setImagePreviewUrl(null);
+                          setImageFile(null);
+                        }}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-3 rounded-full bg-white shadow-sm">
+                      <Camera className="w-6 h-6 text-slate-500" />
+                    </div>
+                    <p className="text-xs text-slate-600 text-center max-w-xs">
+                      Pilih file foto terbaik Anda. Format disarankan: JPG /
+                      PNG.
                     </p>
-                  )}
-                </>
-              )}
+                  </>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2 mt-2 w-full justify-center">
+                  <label className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-md border border-slate-300 bg-white text-slate-700 cursor-pointer hover:bg-slate-100">
+                    Pilih Foto
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setImageFile(file);
+                        if (file) {
+                          const url = URL.createObjectURL(file);
+                          setImagePreviewUrl(url);
+                        } else {
+                          setImagePreviewUrl(null);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {imageFile && (
+                  <p className="text-xs text-slate-600 mt-1">
+                    File terpilih:{" "}
+                    <span className="font-medium">{imageFile.name}</span>
+                  </p>
+                )}
+              </div>
             </div>
 
+            {/* Catatan */}
             <div className="space-y-2">
               <Label>Catatan / Deskripsi</Label>
               <Textarea
                 rows={3}
-                placeholder="Misal: Sesi foto di dermaga sebelum berangkat sailing."
+                placeholder="Misal: Foto official dari tim admin saat briefing pagi."
                 value={formData.note ?? ""}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, note: e.target.value }))
@@ -1177,8 +1136,6 @@ export default function AdminGalleryPage() {
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Menyimpan...
                 </>
-              ) : editingId ? (
-                "Perbarui"
               ) : (
                 "Simpan"
               )}
@@ -1198,14 +1155,14 @@ export default function AdminGalleryPage() {
           </DialogHeader>
           <div className="mt-3 text-sm text-gray-700 dark:text-gray-300">
             <p>
-              Apakah Anda yakin ingin menghapus foto galeri peserta{" "}
+              Apakah Anda yakin ingin menghapus foto galeri{" "}
               <span className="font-semibold text-red-600">
-                {deletingItem?.participantName ?? "ini"}
+                {deletingItem?.label ?? "ini"}
               </span>
               ?
             </p>
             <p className="mt-1 text-gray-500 text-xs">
-              Foto ini akan dipindahkan ke sampah.
+              Foto ini akan dipindahkan ke sampah (soft delete).
             </p>
           </div>
           <DialogFooter className="mt-6 flex justify-end gap-2">
@@ -1234,7 +1191,7 @@ export default function AdminGalleryPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Image dialog */}
+      {/* Preview dialog */}
       <Dialog
         open={!!previewItem}
         onOpenChange={(open) => {
@@ -1247,9 +1204,22 @@ export default function AdminGalleryPage() {
               {previewItem?.sessionTitle || "Preview Foto Galeri"}
             </DialogTitle>
             <DialogDescription>
-              {previewItem?.participantName
-                ? `Foto dari ${previewItem.participantName}. Klik di luar dialog untuk menutup.`
-                : "Klik di luar dialog untuk menutup."}
+              {previewItem ? (
+                <span className="text-xs">
+                  {previewItem.uploadedLabel && (
+                    <>
+                      <span className="font-medium">
+                        {previewItem.uploadedLabel}
+                      </span>
+                      {" • "}
+                    </>
+                  )}
+                  {previewItem.uploadedAt &&
+                    formatDateTime(previewItem.uploadedAt)}
+                </span>
+              ) : (
+                "Klik di luar dialog untuk menutup."
+              )}
             </DialogDescription>
           </DialogHeader>
 

@@ -1,7 +1,7 @@
-// app/api/galleries/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { getSessionFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -10,19 +10,26 @@ const QuerySchema = z.object({
 });
 
 const CreateBodySchema = z.object({
-  participantId: z.string().trim().min(1),
+  participantId: z.string().trim().min(1).optional().nullable(),
   sessionId: z.string().trim().min(1),
   note: z.string().trim().max(2000).optional().nullable(),
   imageUrl: z.string().trim().min(1),
 });
 
 function mapGallery(row: any) {
+  const isAdmin = !!row.uploaderUserId;
+
   return {
     id: row.id,
     tripId: row.tripId,
-    participantId: row.participantId,
-    participantName: row.participant.name,
-    participantWhatsapp: row.participant.whatsapp,
+
+    participantId: row.participantId ?? null,
+    participantName: row.participant?.name ?? null,
+    participantWhatsapp: row.participant?.whatsapp ?? null,
+
+    uploaderUserId: row.uploaderUserId ?? null,
+    uploaderName: row.uploaderName ?? null,
+
     sessionId: row.sessionId,
     sessionTitle: row.session.title,
     sessionLocation: row.session.location,
@@ -89,14 +96,37 @@ export async function POST(req: Request) {
       );
     }
 
+    // Cek user admin yang login
+    const session = getSessionFromRequest(req) as any;
+    const user = session?.user;
+
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, message: "Tidak terautentikasi sebagai admin" },
+        { status: 401 }
+      );
+    }
+
+    const isAdminUpload = !data.participantId; // kalau tidak ada participantId → foto official admin
+
+    // siapkan data untuk create
+    const baseData: any = {
+      tripId: schedule.tripId,
+      sessionId: data.sessionId,
+      note: data.note ?? undefined,
+      imageUrl: data.imageUrl,
+      status: "APPROVED", // admin upload langsung approve
+    };
+
+    if (isAdminUpload) {
+      baseData.uploaderUserId = user.id;
+      baseData.uploaderName = user.name ?? user.username ?? "Admin";
+    } else {
+      baseData.participantId = data.participantId!;
+    }
+
     const created = await prisma.gallery.create({
-      data: {
-        tripId: schedule.tripId,
-        participantId: data.participantId,
-        sessionId: data.sessionId,
-        note: data.note ?? undefined,
-        imageUrl: data.imageUrl,
-      },
+      data: baseData,
       include: {
         participant: true,
         session: true,
