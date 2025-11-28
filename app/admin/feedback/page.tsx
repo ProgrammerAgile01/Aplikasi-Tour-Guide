@@ -255,7 +255,7 @@ export default function AdminFeedbackPage() {
                 value={selectedTripId}
                 onValueChange={(v) => setSelectedTripId(v)}
               >
-                <SelectTrigger id="trip-select" className="w-full">
+                <SelectTrigger id="trip-select" className="w-full h-auto min-h-10 whitespace-normal text-left">
                   <SelectValue
                     placeholder={
                       loadingTrips

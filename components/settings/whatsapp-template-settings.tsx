@@ -400,7 +400,7 @@ export function WhatsAppTemplateSettingsCard() {
                 onValueChange={(v) => setActiveType(v as TemplateType)}
                 className="flex-1 flex flex-col gap-3"
               >
-                <TabsList className="grid grid-cols-2 lg:grid-cols-4 w-full">
+                <TabsList className="grid grid-cols-2 lg:grid-cols-4 w-full h-16 md:h-10">
                   <TabsTrigger value="SCHEDULE" className="text-xs">
                     Jadwal Trip
                   </TabsTrigger>

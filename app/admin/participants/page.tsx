@@ -776,7 +776,7 @@ export default function AdminParticipantsPage() {
                 value={selectedTripId}
                 onValueChange={(v) => setSelectedTripId(v)}
               >
-                <SelectTrigger id="trip-select" className="w-full">
+                <SelectTrigger id="trip-select" className="w-full h-auto min-h-10 whitespace-normal text-left">
                   <SelectValue
                     placeholder={
                       loadingTrips
@@ -1793,7 +1793,7 @@ export default function AdminParticipantsPage() {
                       <p className="text-[9px] uppercase tracking-[0.3em] text-white/70">
                         AD Tour & Transport
                       </p>
-                      <p className="text-md font-semibold text-white leading-tight line-clamp-2">
+                      <p className="text-md font-semibold text-white leading-tight">
                         {currentTrip?.name ?? "Nama Trip"}
                       </p>
                     </div>

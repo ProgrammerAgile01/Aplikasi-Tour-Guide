@@ -408,7 +408,7 @@ export default function AdminBadgesPage() {
             onValueChange={(v) => setSelectedTripId(v)}
             disabled={isLoadingTrips}
           >
-            <SelectTrigger className="bg-white">
+            <SelectTrigger className="bg-white h-auto min-h-10 whitespace-normal text-left">
               <SelectValue
                 placeholder={
                   isLoadingTrips

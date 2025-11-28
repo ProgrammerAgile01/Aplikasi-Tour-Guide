@@ -100,8 +100,8 @@ export default function LoginPage() {
         toast({
           title: "Login Gagal",
           description:
-            // json?.message || "Cek kembali username / WhatsApp dan sandi Anda.",
-            "Cek kembali username dan kata sandi Anda.",
+            // json?.message || "Cek kembali username dan sandi Anda.",
+            "Cek kembali username dan kata sandi Anda",
           variant: "destructive",
         });
         return;
@@ -204,6 +204,10 @@ export default function LoginPage() {
             <Button type="submit" className="w-full h-11" disabled={isLoading}>
               {isLoading ? "Memproses..." : "Masuk"}
             </Button>
+
+            <p className="text-xs text-center">
+              Supported by <a href="https://agilestore.id" target="_blank" className="font-semibold">Agile</a> &copy; 2025
+            </p>
           </form>
         </CardContent>
       </Card>

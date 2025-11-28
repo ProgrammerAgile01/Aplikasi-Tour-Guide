@@ -466,7 +466,7 @@ export default function AdminFlightsPage() {
                 value={selectedTripId}
                 onValueChange={(v) => setSelectedTripId(v)}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full h-auto min-h-10 whitespace-normal text-left">
                   <SelectValue
                     placeholder={
                       loadingTrips

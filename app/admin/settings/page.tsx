@@ -32,8 +32,6 @@ export default function AdminSettingsPage() {
       <div className="grid grid-cols-1 gap-6">
         {/* Template WhatsApp per trip */}
         <WhatsAppTemplateSettingsCard />
-
-        {/* Nanti kalau ada card lain tinggal tambahkan di sini */}
       </div>
     </div>
   );
