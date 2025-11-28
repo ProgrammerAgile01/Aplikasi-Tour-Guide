@@ -58,9 +58,9 @@ export async function GET(req: Request) {
     // Ambil data utama paralel (tambah galleries)
     const [totalParticipants, schedules, attendances, galleries] =
       await Promise.all([
-        prisma.participant.count({ where: { tripId } }),
+        prisma.participant.count({ where: { tripId, deletedAt: null } }),
         prisma.schedule.findMany({
-          where: { tripId },
+          where: { tripId, deletedAt: null },
           select: {
             id: true,
             day: true,
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
           },
         }),
         prisma.gallery.findMany({
-          where: { tripId },
+          where: { tripId, deletedAt: null },
           select: {
             id: true,
             sessionId: true,

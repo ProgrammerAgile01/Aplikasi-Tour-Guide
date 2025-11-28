@@ -1,69 +1,86 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { parseCookies, verifyToken } from "@/lib/auth";
+import { getSessionFromRequest } from "@/lib/auth"; // sesuaikan dengan path auth kamu
 
 export async function GET(req: Request) {
   try {
-    const cookieHeader = req.headers.get("cookie") || "";
-    const cookies = parseCookies(cookieHeader);
-    const token = cookies["token"];
-    const auth = verifyToken(token);
-    if (!auth)
+    // --- AUTH: hanya ADMIN yang boleh ---
+    const session = await getSessionFromRequest(req);
+    if (!session || !session.user || session.user.role !== "ADMIN") {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
         { status: 401 }
       );
-
-    const role = String(auth.user?.role ?? "").toUpperCase();
-    if (role !== "ADMIN") {
-      return NextResponse.json(
-        { ok: false, message: "Forbidden" },
-        { status: 403 }
-      );
     }
 
     const { searchParams } = new URL(req.url);
-    const tripId = searchParams.get("tripId") || undefined;
-    const method = searchParams.get("method") || undefined;
+    const tripId = searchParams.get("tripId");
+    const sessionId = searchParams.get("sessionId"); // <== penting: filter per sesi
+    const methodParam = searchParams.get("method") ?? "all"; // "all" | "geo" | "qr" | "admin"
 
-    const where: any = {};
-    if (tripId) where.tripId = tripId;
-    if (method && method !== "all") where.method = method.toUpperCase();
+    if (!tripId) {
+      return NextResponse.json(
+        { ok: false, message: "tripId wajib diisi" },
+        { status: 400 }
+      );
+    }
 
-    const items = await prisma.attendance.findMany({
+    const where: any = {
+      tripId,
+    };
+
+    if (sessionId) {
+      where.sessionId = sessionId;
+    }
+
+    if (methodParam && methodParam !== "all") {
+      // ENUM di Prisma: GEO, QR, ADMIN
+      if (methodParam === "geo") where.method = "GEO";
+      else if (methodParam === "qr") where.method = "QR";
+      else if (methodParam === "admin") where.method = "ADMIN";
+    }
+
+    const rows = await prisma.attendance.findMany({
       where,
       orderBy: { checkedAt: "desc" },
+      include: {
+        participant: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        session: {
+          select: {
+            id: true,
+            title: true,
+            location: true,
+          },
+        },
+      },
     });
 
-    // Enrich untuk UI
-    const rows = await Promise.all(
-      items.map(async (a) => {
-        const [p, s] = await Promise.all([
-          prisma.participant.findUnique({ where: { id: a.participantId } }),
-          prisma.schedule.findUnique({ where: { id: a.sessionId } }),
-        ]);
-        return {
-          id: a.id,
-          participantName: p?.name ?? "-",
-          sessionTitle: s?.title ?? "-",
-          location: s?.location ?? "-",
-          method: a.method.toLowerCase(),
-          timestamp: new Date(a.checkedAt).toLocaleString("id-ID", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-          status: "present",
-        };
-      })
-    );
+    const items = rows.map((r) => ({
+      id: r.id,
+      participantName: r.participant?.name ?? "-",
+      sessionTitle: r.session?.title ?? "-",
+      location: r.session?.location ?? "-",
+      method: r.method === "GEO" ? "geo" : r.method === "QR" ? "qr" : "admin", // fallback
+      timestamp: r.checkedAt.toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      status: "present" as const, // kalau sudah ada record berarti HADIR
+    }));
 
-    return NextResponse.json({ ok: true, items: rows });
-  } catch (e: any) {
+    return NextResponse.json({ ok: true, items });
+  } catch (err: any) {
+    console.error("GET /api/attendance error", err);
     return NextResponse.json(
-      { ok: false, message: e?.message ?? "Internal Error" },
+      { ok: false, message: err?.message ?? "Internal Error" },
       { status: 500 }
     );
   }

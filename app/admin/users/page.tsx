@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { Search, Trash2, Loader2 } from "lucide-react";
+import { Search, Trash2, Loader2, Pencil, Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,8 @@ interface TripOption {
 
 const pageSize = 15; // jumlah user per halaman
 
+type FormMode = "create" | "edit";
+
 export default function AdminUsersPage() {
   const [q, setQ] = useState("");
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -65,6 +67,20 @@ export default function AdminUsersPage() {
 
   // pagination
   const [page, setPage] = useState(1);
+
+  // === STATE FORM TAMBAH/EDIT ===
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>("create");
+  const [saving, setSaving] = useState(false);
+  const [formUserId, setFormUserId] = useState<string | null>(null);
+  const [formUsername, setFormUsername] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formWhatsapp, setFormWhatsapp] = useState("");
+  const [formPassword, setFormPassword] = useState(""); // create
+  const [formNewPassword, setFormNewPassword] = useState(""); // edit
+  const [formNewPasswordConfirm, setFormNewPasswordConfirm] = useState(""); // edit
+  const [formRole, setFormRole] = useState("ADMIN");
+  const [formIsActive, setFormIsActive] = useState(true); // dipakai untuk edit backend saja (tanpa field UI)
 
   useEffect(() => {
     loadUsers();
@@ -156,6 +172,171 @@ export default function AdminUsersPage() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  // === HANDLER FORM TAMBAH / EDIT ===
+  function openCreateForm() {
+    setFormMode("create");
+    setFormUserId(null);
+    setFormUsername("");
+    setFormName("");
+    setFormWhatsapp("");
+    setFormPassword("");
+    setFormNewPassword("");
+    setFormNewPasswordConfirm("");
+    setFormRole("ADMIN");
+    setFormIsActive(true);
+    setFormOpen(true);
+  }
+
+  function openEditForm(u: UserRow) {
+    setFormMode("edit");
+    setFormUserId(u.id);
+    setFormUsername(u.username);
+    setFormName(u.name);
+    setFormWhatsapp(u.whatsapp);
+    setFormPassword("");
+    setFormNewPassword("");
+    setFormNewPasswordConfirm("");
+    setFormRole(u.role || "ADMIN");
+    setFormIsActive(u.isActive);
+    setFormOpen(true);
+  }
+
+  async function handleSave() {
+    if (formMode === "create") {
+      // validasi simple di client
+      if (!formUsername.trim() || !formName.trim() || !formWhatsapp.trim()) {
+        toast({
+          title: "Validasi",
+          description: "Username, nama dan WhatsApp wajib diisi",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!formPassword || formPassword.length < 6) {
+        toast({
+          title: "Validasi",
+          description: "Password minimal 6 karakter",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const res = await fetch("/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: formUsername.trim(),
+            name: formName.trim(),
+            whatsapp: formWhatsapp.trim(),
+            password: formPassword,
+            // role tidak dikirim; backend selalu pakai "ADMIN"
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json?.ok)
+          throw new Error(json?.message || "Gagal membuat pengguna");
+
+        // tambahkan ke list (di depan)
+        setUsers((prev) => [json.item, ...prev]);
+
+        toast({
+          title: "Berhasil",
+          description: "Pengguna ADMIN baru berhasil dibuat",
+        });
+        setFormOpen(false);
+      } catch (err: any) {
+        console.error(err);
+        toast({
+          title: "Error",
+          description: err?.message || "Gagal membuat pengguna",
+          variant: "destructive",
+        });
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      // EDIT
+      if (!formUserId) return;
+      if (!formName.trim() || !formWhatsapp.trim()) {
+        toast({
+          title: "Validasi",
+          description: "Nama dan WhatsApp wajib diisi",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // kalau mau ubah password
+      let passwordToSend: string | undefined = undefined;
+      if (formNewPassword || formNewPasswordConfirm) {
+        if (formNewPassword.length < 6) {
+          toast({
+            title: "Validasi",
+            description: "Password baru minimal 6 karakter",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (formNewPassword !== formNewPasswordConfirm) {
+          toast({
+            title: "Validasi",
+            description: "Konfirmasi password baru tidak sama",
+            variant: "destructive",
+          });
+          return;
+        }
+        passwordToSend = formNewPassword;
+      }
+
+      setSaving(true);
+      try {
+        const body: any = {
+          name: formName.trim(),
+          whatsapp: formWhatsapp.trim(),
+          // role & isActive tidak diubah dari form, kecuali kamu mau tambahkan lagi
+        };
+        if (passwordToSend) {
+          body.password = passwordToSend;
+        }
+
+        const res = await fetch(
+          `/api/users/${encodeURIComponent(formUserId)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }
+        );
+        const json = await res.json();
+        if (!res.ok || !json?.ok)
+          throw new Error(json?.message || "Gagal update pengguna");
+
+        setUsers((prev) =>
+          prev.map((u) => (u.id === json.item.id ? { ...u, ...json.item } : u))
+        );
+
+        toast({
+          title: "Berhasil",
+          description: passwordToSend
+            ? "Data pengguna & password berhasil diperbarui"
+            : "Data pengguna berhasil diperbarui",
+        });
+        setFormOpen(false);
+      } catch (err: any) {
+        console.error(err);
+        toast({
+          title: "Error",
+          description: err?.message || "Gagal update pengguna",
+          variant: "destructive",
+        });
+      } finally {
+        setSaving(false);
+      }
     }
   }
 
@@ -261,17 +442,23 @@ export default function AdminUsersPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <CardTitle className="text-xl">Daftar Pengguna</CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadUsers}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Muat ulang
-            </Button>
+            <div className="flex flex-wrap justify-end items-center gap-2">
+              <Button size="sm" onClick={openCreateForm}>
+                <Plus className="w-4 h-4 mr-1" />
+                Tambah Admin
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadUsers}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Muat ulang
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -316,11 +503,11 @@ export default function AdminUsersPage() {
                                 className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700"
                               >
                                 {ut.trip?.name ?? "-"}
-                                {ut.roleOnTrip && (
+                                {/* {ut.roleOnTrip && (
                                   <span className="ml-1 text-[10px] uppercase text-slate-400">
                                     ({ut.roleOnTrip})
                                   </span>
-                                )}
+                                )} */}
                               </span>
                             ))}
                           </div>
@@ -339,6 +526,14 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditForm(u)}
+                          >
+                            <Pencil className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -396,6 +591,125 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* dialog TAMBAH / EDIT */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              {formMode === "create" ? "Tambah User Admin" : "Edit Pengguna"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 mt-2 text-sm">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">
+                Username
+              </label>
+              <Input
+                value={formUsername}
+                onChange={(e) => setFormUsername(e.target.value)}
+                placeholder="mis. admin01"
+                disabled={formMode === "edit"}
+              />
+              {formMode === "edit" && (
+                <p className="text-[11px] text-slate-400">
+                  Username tidak bisa diubah.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">Nama</label>
+              <Input
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Nama lengkap"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-600">
+                WhatsApp
+              </label>
+              <Input
+                value={formWhatsapp}
+                onChange={(e) => setFormWhatsapp(e.target.value)}
+                placeholder="08xxxxxxxxxxx"
+              />
+            </div>
+
+            {formMode === "create" && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">
+                  Password
+                </label>
+                <Input
+                  type="password"
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="Minimal 8 karakter"
+                />
+              </div>
+            )}
+
+            {formMode === "create" && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-600">
+                  Role
+                </label>
+                <>
+                  <Input value="ADMIN" disabled />
+                  <p className="text-[11px] text-slate-400">
+                    User yang dibuat dari sini otomatis sebagai <b>ADMIN</b>.
+                  </p>
+                </>
+              </div>
+            )}
+
+            {formMode === "edit" && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">
+                    Password baru (opsional)
+                  </label>
+                  <Input
+                    type="password"
+                    value={formNewPassword}
+                    onChange={(e) => setFormNewPassword(e.target.value)}
+                    placeholder="Kosongkan jika tidak ingin mengubah"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-600">
+                    Konfirmasi password baru
+                  </label>
+                  <Input
+                    type="password"
+                    value={formNewPasswordConfirm}
+                    onChange={(e) => setFormNewPasswordConfirm(e.target.value)}
+                    placeholder="Ulangi password baru"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setFormOpen(false)}
+              disabled={saving}
+            >
+              Batal
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {formMode === "create" ? "Simpan" : "Update"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* delete dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>

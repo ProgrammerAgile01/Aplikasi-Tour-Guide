@@ -30,13 +30,13 @@ export async function GET(req: Request) {
     const [totalParticipants, totalAgenda, totalApprovedPhotos] =
       await Promise.all([
         prisma.participant.count({
-          where: { tripId: trip.id },
+          where: { tripId: trip.id, deletedAt: null },
         }),
         prisma.schedule.count({
-          where: { tripId: trip.id },
+          where: { tripId: trip.id, deletedAt: null },
         }),
         prisma.gallery.count({
-          where: { tripId: trip.id, status: "APPROVED" },
+          where: { tripId: trip.id, status: "APPROVED", deletedAt: null },
         }),
       ]);
 
@@ -140,7 +140,7 @@ export async function GET(req: Request) {
           take: 5,
         }),
         prisma.gallery.findMany({
-          where: { tripId: trip.id },
+          where: { tripId: trip.id, deletedAt: null },
           include: {
             participant: true,
             session: true,
@@ -149,7 +149,7 @@ export async function GET(req: Request) {
           take: 5,
         }),
         prisma.feedback.findMany({
-          where: { tripId: trip.id },
+          where: { tripId: trip.id, deletedAt: null },
           include: {
             participant: true,
           },

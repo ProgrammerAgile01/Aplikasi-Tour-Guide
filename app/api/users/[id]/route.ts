@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 
 const UpdateUserSchema = z.object({
   name: z.string().optional(),
   role: z.string().optional(),
   isActive: z.boolean().optional(),
+  password: z.string().min(8, "Password minimal 8 karakter").optional(),
 });
 
 async function resolveId(req: Request, params: any) {
@@ -80,7 +82,15 @@ export async function PUT(req: Request, { params }: { params: any }) {
     const json = await req.json();
     const data = UpdateUserSchema.parse(json);
 
-    const updated = await prisma.user.update({ where: { id }, data });
+    const { password, ...rest } = data;
+    const updateData: any = { ...rest };
+
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      updateData.password = hash;
+    }
+
+    const updated = await prisma.user.update({ where: { id }, data: updateData });
 
     return NextResponse.json({
       ok: true,

@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   Users,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -27,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Html5Qrcode } from "html5-qrcode";
 
@@ -97,6 +100,13 @@ export default function AdminAttendancePage() {
   >("idle");
   const [scanMessage, setScanMessage] = useState<string>("");
   const [scanner, setScanner] = useState<any | null>(null);
+
+  // dialog batal kehadiran
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<AttendanceRecord | null>(
+    null
+  );
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   /* ----------------------------------------------------------------
    * 1. LOAD TRIPS SEKALI SAAT MOUNT
@@ -219,11 +229,17 @@ export default function AdminAttendancePage() {
    * ---------------------------------------------------------------- */
   useEffect(() => {
     (async () => {
-      if (!selectedTripId) return;
+      if (!selectedTripId || !selectedSessionId) {
+        setAttendanceRecords([]);
+        return;
+      }
       try {
         const url = `/api/attendance?tripId=${encodeURIComponent(
           selectedTripId
+        )}&sessionId=${encodeURIComponent(
+          selectedSessionId
         )}&method=${encodeURIComponent(filterMethod)}`;
+
         const res = await fetch(url, { cache: "no-store" });
         const j = await res.json();
         if (!res.ok || !j?.ok)
@@ -238,7 +254,7 @@ export default function AdminAttendancePage() {
         });
       }
     })();
-  }, [selectedTripId, filterMethod, toast]);
+  }, [selectedTripId, selectedSessionId, filterMethod, toast]);
 
   // reset page kalau filter/text berubah (supaya tidak nyangkut di halaman besar)
   useEffect(() => {
@@ -331,14 +347,18 @@ export default function AdminAttendancePage() {
 
               // refresh tabel attendance
               try {
-                const url = `/api/attendance?tripId=${encodeURIComponent(
-                  selectedTripId
-                )}&method=${encodeURIComponent(filterMethod)}`;
-                const res2 = await fetch(url, { cache: "no-store" });
-                const j2 = await res2.json();
-                if (res2.ok && j2?.ok) {
-                  setAttendanceRecords(j2.items || []);
-                  setPage(1);
+                if (selectedTripId && selectedSessionId) {
+                  const url = `/api/attendance?tripId=${encodeURIComponent(
+                    selectedTripId
+                  )}&sessionId=${encodeURIComponent(
+                    selectedSessionId
+                  )}&method=${encodeURIComponent(filterMethod)}`;
+                  const res2 = await fetch(url, { cache: "no-store" });
+                  const j2 = await res2.json();
+                  if (res2.ok && j2?.ok) {
+                    setAttendanceRecords(j2.items || []);
+                    setPage(1);
+                  }
                 }
               } catch {}
 
@@ -454,16 +474,20 @@ export default function AdminAttendancePage() {
         prev.filter((p) => p.id !== participantId)
       );
 
-      // refresh tabel attendance utama (diam-diam)
+      // refresh tabel attendance utama per sesi
       try {
-        const url = `/api/attendance?tripId=${encodeURIComponent(
-          selectedTripId
-        )}&method=${encodeURIComponent(filterMethod)}`;
-        const res2 = await fetch(url, { cache: "no-store" });
-        const j2 = await res2.json();
-        if (res2.ok && j2?.ok) {
-          setAttendanceRecords(j2.items || []);
-          setPage(1);
+        if (selectedTripId && selectedSessionId) {
+          const url = `/api/attendance?tripId=${encodeURIComponent(
+            selectedTripId
+          )}&sessionId=${encodeURIComponent(
+            selectedSessionId
+          )}&method=${encodeURIComponent(filterMethod)}`;
+          const res2 = await fetch(url, { cache: "no-store" });
+          const j2 = await res2.json();
+          if (res2.ok && j2?.ok) {
+            setAttendanceRecords(j2.items || []);
+            setPage(1);
+          }
         }
       } catch {
         // ignore
@@ -474,6 +498,52 @@ export default function AdminAttendancePage() {
         description: e?.message || "Gagal absensi manual peserta",
         variant: "destructive",
       });
+    }
+  };
+
+  // buka dialog konfirmasi batal hadir
+  const openCancelDialog = (record: AttendanceRecord) => {
+    setCancelTarget(record);
+    setCancelOpen(true);
+  };
+
+  // eksekusi batal hadir
+  const confirmCancelAttendance = async () => {
+    if (!cancelTarget) return;
+
+    setCancelLoading(true);
+    try {
+      const res = await fetch(
+        `/api/attendance/${encodeURIComponent(cancelTarget.id)}`,
+        {
+          method: "DELETE",
+        }
+      );
+      const j = await res.json();
+      if (!res.ok || !j?.ok) {
+        throw new Error(j?.message || "Gagal membatalkan kehadiran");
+      }
+
+      // hapus dari state lokal
+      setAttendanceRecords((prev) =>
+        prev.filter((r) => r.id !== cancelTarget.id)
+      );
+
+      toast({
+        title: "Berhasil",
+        description: `Kehadiran ${cancelTarget.participantName} telah dibatalkan.`,
+      });
+
+      setCancelOpen(false);
+      setCancelTarget(null);
+    } catch (e: any) {
+      toast({
+        title: "Error",
+        description: e?.message || "Gagal membatalkan kehadiran",
+        variant: "destructive",
+      });
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -624,7 +694,7 @@ export default function AdminAttendancePage() {
             )}
           </div>
 
-          <div className="flex justify-center mt-3 gap-3">
+          <div className="flex flex-wrap justify-center mt-3 gap-3">
             <Button
               variant="outline"
               className="gap-2"
@@ -761,8 +831,12 @@ export default function AdminAttendancePage() {
                   <th className="text-left py-3 px-4 font-semibold text-slate-700">
                     Status
                   </th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                    Aksi
+                  </th>
                 </tr>
               </thead>
+
               <tbody>
                 {pagedRecords.map((record) => (
                   <tr
@@ -815,11 +889,23 @@ export default function AdminAttendancePage() {
                         </span>
                       )}
                     </td>
+                    <td className="py-3 px-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:bg-red-50"
+                        onClick={() => openCancelDialog(record)}
+                      >
+                        <RotateCcw size={16} className="mr-1" />
+                        Batalkan Kehadiran
+                      </Button>
+                    </td>
                   </tr>
                 ))}
+
                 {filteredRecords.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-slate-500">
+                    <td colSpan={7} className="py-6 text-center text-slate-500">
                       Belum ada data
                     </td>
                   </tr>
@@ -992,6 +1078,108 @@ export default function AdminAttendancePage() {
               </p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Batalkan Kehadiran */}
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="sm:max-w-[460px] backdrop-blur-xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/60 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <RotateCcw className="w-5 h-5" />
+              Batalkan Kehadiran
+            </DialogTitle>
+            <DialogDescription>
+              Tindakan ini akan menghapus record kehadiran peserta untuk agenda
+              yang dipilih. Peserta akan dianggap <b>belum hadir</b> lagi
+            </DialogDescription>
+          </DialogHeader>
+
+          {cancelTarget && (
+            <div className="mt-3 space-y-3 text-sm text-slate-700">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">
+                  Detail Kehadiran
+                </p>
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Nama</span>
+                    <span className="font-semibold">
+                      {cancelTarget.participantName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Agenda</span>
+                    <span className="text-right">
+                      {cancelTarget.sessionTitle}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Lokasi</span>
+                    <span className="text-right">{cancelTarget.location}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Waktu</span>
+                    <span className="flex items-center gap-1 text-right">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {cancelTarget.timestamp}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-slate-500">Metode</span>
+                    <span className="text-right text-xs uppercase">
+                      {cancelTarget.method === "geo"
+                        ? "GEO"
+                        : cancelTarget.method === "qr"
+                        ? "QR"
+                        : "ADMIN"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-red-600 flex items-start gap-2">
+                <XCircle className="w-4 h-4 mt-[2px]" />
+                <span>
+                  Pastikan Anda membatalkan kehadiran untuk peserta yang benar.
+                  Record kehadiran akan dihapus dan peserta dapat melakukan
+                  check-in ulang
+                </span>
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (cancelLoading) return;
+                setCancelOpen(false);
+                setCancelTarget(null);
+              }}
+              disabled={cancelLoading}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelAttendance}
+              disabled={cancelLoading || !cancelTarget}
+              className="bg-gradient-to-r from-red-500 to-pink-500 text-white"
+            >
+              {cancelLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Ya, Batalkan Kehadiran
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

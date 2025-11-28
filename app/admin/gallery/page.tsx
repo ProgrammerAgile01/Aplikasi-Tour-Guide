@@ -678,13 +678,13 @@ export default function AdminGalleryPage() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle className="text-xl">Daftar Galeri</CardTitle>
-                {/* <Button
+                <Button
                   onClick={() => handleOpenDialog()}
                   className="gap-2 bg-blue-600 hover:bg-blue-700"
                   disabled={loadingParticipants || loadingSessions}
                 >
                   <Plus size={16} /> Tambah Foto
-                </Button> */}
+                </Button>
               </div>
             </CardHeader>
             <CardContent>

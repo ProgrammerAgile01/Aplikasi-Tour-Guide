@@ -120,9 +120,12 @@ export async function GET(req: Request, ctx: { params: any }) {
       where: { id: tripId },
       include: {
         schedules: {
+          where: { deletedAt: null },
           orderBy: [{ day: "asc" }, { timeText: "asc" }],
         },
-        participants: true,
+        participants: {
+          where: { deletedAt: null },
+        },
         announcements: {
           orderBy: [
             { priority: "desc" },
