@@ -743,7 +743,7 @@ export default function AdminGalleryPage() {
                                 {item.participantWhatsapp}
                               </p>
                             </div>
-                            {renderStatusBadge(item.status)}
+                            {/* {renderStatusBadge(item.status)} */}
                           </div>
 
                           <div className="text-xs text-slate-600 mt-1">
@@ -827,9 +827,9 @@ export default function AdminGalleryPage() {
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Gambar
                       </th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700">
+                      {/* <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Status
-                      </th>
+                      </th> */}
                       <th className="text-left py-3 px-4 font-semibold text-slate-700">
                         Waktu Upload
                       </th>
@@ -911,9 +911,9 @@ export default function AdminGalleryPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 align-top">
+                          {/* <td className="py-3 px-4 align-top">
                             {renderStatusBadge(item.status)}
-                          </td>
+                          </td> */}
                           <td className="py-3 px-4 text-sm text-slate-600 align-top whitespace-nowrap">
                             {formatDateTime(item.createdAt)}
                           </td>

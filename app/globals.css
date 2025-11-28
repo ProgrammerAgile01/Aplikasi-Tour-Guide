@@ -4,6 +4,68 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* === PRINT KARTU PESERTA (single & mass) === */
+@media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: auto;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background: transparent !important;
+  }
+
+  /* Default: SEMUA elemen disembunyikan dari tampilan */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Yang boleh muncul saat print: single card & batch cards */
+  #participant-card-print,
+  #participant-card-print *,
+  #participant-cards-print-all,
+  #participant-cards-print-all * {
+    visibility: visible !important;
+  }
+
+  /* === MODE SINGLE CARD (dialog Kartu Peserta) === */
+  #participant-card-print {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: 8.6cm;
+    height: 5.4cm;
+  }
+
+  /* === MODE BATCH (Print semua kartu peserta) === */
+  #participant-cards-print-all {
+    /* paksa mulai dari halaman pertama, bukan halaman 2 */
+    position: absolute;
+    top: 0.5cm;
+    left: 0;
+    right: 0;
+    margin-left: auto;
+    margin-right: auto;
+
+    /* layout grid: 2 kartu per baris */
+    display: grid !important;
+    grid-template-columns: repeat(2, 8.6cm);
+    gap: 0.4cm 0.5cm; /* vertical, horizontal */
+
+    padding: 0;
+  }
+
+  /* Jangan biarkan 1 kartu terpotong di tengah halaman */
+  #participant-cards-print-all > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
 :root {
   /* Warna Brand Eksekutif */
   --background: #f9fafb;

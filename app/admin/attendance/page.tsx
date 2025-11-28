@@ -28,6 +28,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface AttendanceRecord {
   id: string;
@@ -88,6 +89,14 @@ export default function AdminAttendancePage() {
   const [missingParticipants, setMissingParticipants] = useState<
     MissingParticipant[]
   >([]);
+
+  // presensi scan oleh admin
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanStatus, setScanStatus] = useState<
+    "idle" | "scanning" | "success" | "error"
+  >("idle");
+  const [scanMessage, setScanMessage] = useState<string>("");
+  const [scanner, setScanner] = useState<any | null>(null);
 
   /* ----------------------------------------------------------------
    * 1. LOAD TRIPS SEKALI SAAT MOUNT
@@ -235,6 +244,146 @@ export default function AdminAttendancePage() {
   useEffect(() => {
     setPage(1);
   }, [searchQuery, filterLocation]);
+
+  // presensi yang scan admin
+  useEffect(() => {
+    if (!scanOpen) {
+      // stop scanner kalau dialog ditutup
+      (async () => {
+        if (scanner) {
+          try {
+            await scanner.stop();
+          } catch {}
+          try {
+            await scanner.clear();
+          } catch {}
+        }
+      })();
+      return;
+    }
+
+    let cancelled = false;
+
+    async function startScan() {
+      try {
+        setScanStatus("scanning");
+        setScanMessage("Mengaktifkan kamera...");
+
+        const { Html5Qrcode } = await import("html5-qrcode");
+
+        const sc = new Html5Qrcode("admin-card-scan");
+        setScanner(sc);
+
+        await sc.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 230 },
+          async (decodedText: string) => {
+            if (cancelled) return;
+            // begitu dapat QR sekali, stop dulu
+            try {
+              await sc.stop();
+            } catch {}
+            try {
+              await sc.clear();
+            } catch {}
+
+            setScanStatus("scanning");
+            setScanMessage("Mengirim absensi...");
+
+            try {
+              const res = await fetch("/api/checkins/card/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  tripId: selectedTripId,
+                  sessionId: selectedSessionId,
+                  token: decodedText,
+                }),
+              });
+
+              const j = await res.json();
+              if (!res.ok || !j?.ok) {
+                throw new Error(j?.message || "Gagal menyimpan absensi");
+              }
+
+              const checkedAtIso: string = j.data?.checkedAt;
+              const timeStr = checkedAtIso
+                ? new Date(checkedAtIso).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : new Date().toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+
+              setScanStatus("success");
+              setScanMessage(
+                `Hadir: ${j.data?.participant?.name ?? "Peserta"} · ${timeStr}`
+              );
+
+              toast({
+                title: "Absensi tercatat",
+                description: `Peserta ${
+                  j.data?.participant?.name ?? ""
+                } berhasil ditandai hadir`,
+              });
+
+              // refresh tabel attendance
+              try {
+                const url = `/api/attendance?tripId=${encodeURIComponent(
+                  selectedTripId
+                )}&method=${encodeURIComponent(filterMethod)}`;
+                const res2 = await fetch(url, { cache: "no-store" });
+                const j2 = await res2.json();
+                if (res2.ok && j2?.ok) {
+                  setAttendanceRecords(j2.items || []);
+                  setPage(1);
+                }
+              } catch {}
+
+              // kalau mau lanjut scan peserta berikutnya, hidupkan lagi
+              setTimeout(() => {
+                if (!cancelled) startScan();
+              }, 1000);
+            } catch (e: any) {
+              setScanStatus("error");
+              setScanMessage(e?.message || "Gagal memproses kode kartu");
+              toast({
+                title: "Gagal",
+                description: e?.message || "Tidak bisa memproses kode kartu",
+                variant: "destructive",
+              });
+
+              // coba restart scanner lagi supaya bisa scan ulang
+              setTimeout(() => {
+                if (!cancelled) startScan();
+              }, 1500);
+            }
+          },
+          () => {
+            // error per-frame diabaikan
+          }
+        );
+
+        setScanStatus("scanning");
+        setScanMessage("Arahkan kamera ke kartu peserta...");
+      } catch (e: any) {
+        setScanStatus("error");
+        setScanMessage(
+          e?.message ||
+            "Gagal mengakses kamera, cek izin kamera di browser perangkat admin."
+        );
+      }
+    }
+
+    startScan();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanOpen, selectedTripId, selectedSessionId]);
 
   const loadMissingParticipants = async () => {
     if (!selectedTripId || !selectedSessionId) {
@@ -475,7 +624,7 @@ export default function AdminAttendancePage() {
             )}
           </div>
 
-          <div className="flex justify-center mt-3">
+          <div className="flex justify-center mt-3 gap-3">
             <Button
               variant="outline"
               className="gap-2"
@@ -487,6 +636,16 @@ export default function AdminAttendancePage() {
             >
               <Users size={16} />
               Lihat Peserta Belum Presensi
+            </Button>
+
+            <Button
+              variant="default"
+              className="gap-2"
+              disabled={!selectedTripId || !selectedSessionId}
+              onClick={() => setScanOpen(true)}
+            >
+              <QrCode size={16} />
+              Scan Kartu Peserta
             </Button>
           </div>
         </CardContent>
@@ -787,6 +946,50 @@ export default function AdminAttendancePage() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scan Kartu Peserta</DialogTitle>
+            <DialogDescription>
+              Arahkan kamera perangkat admin ke QR pada kartu peserta. Trip dan
+              agenda mengikuti pilihan di panel atas
+            </DialogDescription>
+          </DialogHeader>
+
+          {!selectedTripId || !selectedSessionId ? (
+            <p className="text-sm text-red-500">
+              Pilih Trip dan Agenda terlebih dahulu sebelum melakukan scan kartu
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div
+                id="admin-card-scan"
+                className="w-full h-64 bg-black rounded-lg overflow-hidden"
+              />
+              <p className="text-xs text-slate-600">
+                Status:{" "}
+                <span
+                  className={
+                    scanStatus === "scanning"
+                      ? "text-blue-600"
+                      : scanStatus === "success"
+                      ? "text-green-600"
+                      : scanStatus === "error"
+                      ? "text-red-600"
+                      : "text-slate-600"
+                  }
+                >
+                  {scanMessage || "Siap memindai..."}
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Tips: Pastikan QR di kartu terlihat jelas & tidak blur.
+              </p>
             </div>
           )}
         </DialogContent>

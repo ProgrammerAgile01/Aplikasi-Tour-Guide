@@ -106,11 +106,11 @@ function getNextAgendaEta(
 
     if (!parts.length) return null;
 
-    return `Absen dibuka dalam ${parts.join(" ")}`;
+    return `Absen kehadiran dibuka dalam ${parts.join(" ")}`;
   }
 
   // Di dalam window check-in (antara windowStart dan windowEnd / minimal windowStart ke depan)
-  return "Absen sedang dibuka sekarang";
+  return "Absen kehadiran sedang dibuka sekarang";
 }
 
 export default function OverviewPage() {
@@ -282,7 +282,7 @@ export default function OverviewPage() {
       toast({
         title: "Belum waktunya absen",
         description:
-          "Absen hanya bisa dilakukan pada jam sesi yang berlangsung.",
+          "Absen kehadiran hanya bisa dilakukan pada jam sesi yang berlangsung.",
         variant: "destructive",
       });
       return;
@@ -479,7 +479,7 @@ export default function OverviewPage() {
                     <span className="whitespace-normal text-xs sm:text-sm">
                       {canCheckInNow
                         ? "Konfirmasi Kehadiran"
-                        : "Absen belum dibuka"}
+                        : "Absen kehadiran belum dibuka"}
                     </span>
                   </Button>
                 )}

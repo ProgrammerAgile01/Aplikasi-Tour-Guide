@@ -34,6 +34,11 @@ function generateRandomPassword(len = 10) {
     .slice(0, len);
 }
 
+function generateCheckinToken() {
+  // 32 char hex random, cukup kuat & susah ditebak
+  return crypto.randomBytes(16).toString("hex");
+}
+
 // ==================== GET /api/participants ====================
 
 export async function GET(req: Request) {
@@ -110,6 +115,7 @@ export async function POST(req: Request) {
     const username = generateUsernameFromName(data.name);
     const rawPassword = generateRandomPassword(10);
     const hashed = await bcrypt.hash(rawPassword, 10);
+    const checkinTokenQr = generateCheckinToken();
 
     const user = await prisma.user.create({
       data: {
@@ -147,6 +153,7 @@ export async function POST(req: Request) {
         loginUsername: username,
         // simpan password awal untuk nanti dikirim via WA / ditampilkan ke admin
         initialPassword: rawPassword,
+        checkinToken: checkinTokenQr,
       },
     });
 

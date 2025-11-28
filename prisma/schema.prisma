@@ -45,6 +45,7 @@ model Trip {
   participantBadges ParticipantBadge[]
   whatsappTemplates WhatsAppTemplate[]
   flights          Flight[]
+  magicLoginTokens  MagicLoginToken[]
 
   @@index([status])
   @@index([startDate, endDate])
@@ -78,7 +79,7 @@ model Schedule {
   // petunjuk multi (JSON array of string)
   hints           Json?
 
-  description     String?
+  description     String?   @db.Text
   isChanged       Boolean   @default(false)
   isAdditional    Boolean   @default(false)
 
@@ -148,6 +149,7 @@ model Participant {
 
   loginUsername String?   @db.VarChar(191)
   initialPassword String?   @db.VarChar(191)
+  checkinToken   String    @unique @db.VarChar(64)
   deletedAt     DateTime?
 
   feedbacks         Feedback[]
@@ -157,6 +159,7 @@ model Participant {
   galleries         Gallery[]
   participantBadges ParticipantBadge[]
   flights          Flight[]
+  magicLoginTokens  MagicLoginToken[]
 
   @@index([tripId])
   @@index([whatsapp])
@@ -174,6 +177,7 @@ model User {
   deletedAt  DateTime?
 
   userTrips  UserTrip[]
+  magicLoginTokens  MagicLoginToken[]
 
   @@index([role])
 }
@@ -435,4 +439,26 @@ model Flight {
   @@index([participantId])
   @@index([direction])
   @@index([role])
+}
+
+model MagicLoginToken {
+  id            String   @id @default(cuid())
+  userId        String
+  participantId String?
+  tripId        String?
+
+  token         String   @unique @db.VarChar(128)
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  lastUsedAt    DateTime?
+  usageCount    Int      @default(0)
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participant Participant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  trip        Trip?        @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([participantId])
+  @@index([tripId])
+  @@index([expiresAt])
 }

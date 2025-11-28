@@ -168,7 +168,7 @@ export async function POST(req: Request, { params }: { params: any }) {
         sessionId,
         note,
         imageUrl,
-        status: "PENDING",
+        status: "APPROVED",
       },
       include: {
         participant: true,
@@ -185,7 +185,8 @@ export async function POST(req: Request, { params }: { params: any }) {
 
     return NextResponse.json({
       ok: true,
-      message: "Foto terkirim — menunggu persetujuan admin.",
+      // message: "Foto terkirim — menunggu persetujuan admin.",
+      message: "Foto berhasil di upload",
       image: toClient(gallery, participantId), // 🔹 frontend langsung pakai
       newBadges: newlyUnlocked.map((b) => ({
         id: b.id,

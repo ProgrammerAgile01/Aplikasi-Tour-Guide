@@ -7,6 +7,7 @@ import {
   applyTemplate,
   type WhatsAppTemplateType,
 } from "@/lib/whatsapp-templates";
+import { getOrCreateMagicLink } from "@/lib/magic-link";
 
 const BodySchema = {
   async parse(json: any): Promise<{ tripId: string }> {
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
     const { tripId } = await BodySchema.parse(body);
 
     const origin = new URL(req.url).origin;
+    const baseUrl = `https://temanwisata.com`;
     const loginUrl = `https://temanwisata.com/login`;
 
     // Pastikan trip ada
@@ -93,25 +95,47 @@ export async function POST(req: Request) {
       }
 
       try {
-        // --- Cari / buat user berdasarkan whatsapp ---
-        let user = await prisma.user
-          .findUnique({ where: { whatsapp: p.whatsapp } })
-          .catch(() => null);
-
+        // ================================
+        // RESOLVE / BUAT USER TANPA WHATSAPP UNIK
+        // ================================
         let plainPassword: string | undefined;
-        let loginUsernameForParticipant: string | undefined;
+        let effectiveInitialPassword: string | null = p.initialPassword ?? null;
 
-        if (user) {
-          // user sudah ada → pastikan nama & wa update
-          user = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-              name: p.name,
-              whatsapp: p.whatsapp,
+        // 1) Coba lewat UserTrip (utama, untuk data baru)
+        const existingLink = await prisma.userTrip.findFirst({
+          where: {
+            tripId,
+            participantId: p.id,
+          },
+          include: { user: true },
+        });
+
+        let user = existingLink?.user ?? null;
+
+        // 2) Kalau belum ada userTrip / user, coba lewat loginUsername
+        if (!user && p.loginUsername) {
+          user = await prisma.user.findFirst({
+            where: {
+              username: p.loginUsername,
+              deletedAt: null,
             },
           });
-        } else {
-          // user belum ada → buat user baru + password awal
+
+          // kalau ketemu user tapi belum ada UserTrip, buat link-nya
+          if (user && !existingLink) {
+            await prisma.userTrip.create({
+              data: {
+                userId: user.id,
+                tripId,
+                roleOnTrip: "PESERTA",
+                participantId: p.id,
+              },
+            });
+          }
+        }
+
+        // 3) Kalau benar-benar tidak ada user → buat user baru
+        if (!user) {
           const username = generateUsernameFromName(p.name);
           const rawPassword = generateRandomPassword(10);
           const hashed = await bcrypt.hash(rawPassword, 10);
@@ -121,6 +145,7 @@ export async function POST(req: Request) {
               username,
               password: hashed,
               name: p.name,
+              // WA hanya untuk tujuan kirim pesan, boleh duplikat
               whatsapp: p.whatsapp,
               role: "PESERTA",
               isActive: true,
@@ -128,7 +153,7 @@ export async function POST(req: Request) {
           });
 
           plainPassword = rawPassword;
-          loginUsernameForParticipant = username;
+          effectiveInitialPassword = rawPassword;
 
           // simpan username + initialPassword ke participant
           await prisma.participant.update({
@@ -136,6 +161,16 @@ export async function POST(req: Request) {
             data: {
               loginUsername: username,
               initialPassword: rawPassword,
+            },
+          });
+
+          // Pastikan UserTrip terhubung
+          await prisma.userTrip.create({
+            data: {
+              userId: user.id,
+              tripId,
+              roleOnTrip: "PESERTA",
+              participantId: p.id,
             },
           });
         }
@@ -147,7 +182,7 @@ export async function POST(req: Request) {
 
         // Jika akun sudah ada & participant belum punya initialPassword,
         // reset password SEKALI dan simpan sebagai initialPassword
-        if (!plainPassword && !p.initialPassword) {
+        if (!plainPassword && !effectiveInitialPassword) {
           const resetPassword = generateRandomPassword(10);
           const hashedReset = await bcrypt.hash(resetPassword, 10);
 
@@ -162,22 +197,17 @@ export async function POST(req: Request) {
           });
 
           plainPassword = resetPassword;
+          effectiveInitialPassword = resetPassword;
         }
 
-        // Pastikan UserTrip terhubung
-        const link = await prisma.userTrip.findUnique({
-          where: { userId_tripId: { userId: userResp.id, tripId } },
+        const magic = await getOrCreateMagicLink({
+          userId: userResp.id,
+          participantId: p.id,
+          tripId,
+          baseUrl: baseUrl,
         });
-        if (!link) {
-          await prisma.userTrip.create({
-            data: {
-              userId: userResp.id,
-              tripId,
-              roleOnTrip: "PESERTA",
-              participantId: p.id,
-            },
-          });
-        }
+
+        const magicLoginUrl = magic.url;
 
         // === TEMPLATE WA: SELALU PAKAI PARTICIPANT_REGISTERED_NEW ===
         const type: WhatsAppTemplateType = "PARTICIPANT_REGISTERED_NEW";
@@ -188,15 +218,12 @@ export async function POST(req: Request) {
         );
 
         const loginUsername =
-          loginUsernameForParticipant ||
-          p.loginUsername ||
-          userResp.username ||
-          "akunanda";
+          p.loginUsername || userResp.username || "akunanda";
 
         // Password yang dikirim:
         // - kalau barusan buat / reset user: plainPassword
         // - kalau sudah punya initialPassword: pakai itu
-        const loginPassword = plainPassword ?? p.initialPassword ?? "";
+        const loginPassword = plainPassword ?? effectiveInitialPassword ?? "";
 
         const content = applyTemplate(templateContent, {
           participant_name: p.name,
@@ -205,6 +232,7 @@ export async function POST(req: Request) {
           login_username: loginUsername,
           login_password: loginPassword,
           login_url: loginUrl,
+          magic_login_url: magicLoginUrl,
         });
 
         const templateCode = "TRIP_ACCOUNT_CREATED";

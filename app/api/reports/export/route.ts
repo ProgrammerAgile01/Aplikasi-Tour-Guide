@@ -467,9 +467,10 @@ async function getLogoBytesFromSettingOrPublic(
 
   // 2. Fallback ke file di public
   const candidates = [
-    { file: "logo-temanwisata.png", isPng: true },
-    { file: "logo-temanwisata.jpg", isPng: false },
-    { file: "logo-temanwisata.jpeg", isPng: false },
+    { file: "logo-ad-tour-transparan.png", isPng: true },
+    // { file: "logo-temanwisata.png", isPng: true },
+    // { file: "logo-temanwisata.jpg", isPng: false },
+    // { file: "logo-temanwisata.jpeg", isPng: false },
   ];
 
   for (const c of candidates) {

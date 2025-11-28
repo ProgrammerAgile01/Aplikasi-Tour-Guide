@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
 import { parseCookies, verifyToken } from "@/lib/auth";
 import {
@@ -8,99 +7,96 @@ import {
 } from "@/lib/badges";
 import { updateTripStatusIfAllCompleted } from "@/lib/trip-progress";
 
-const JWT = process.env.JWT_SECRET || "dev-secret";
-
 export async function POST(req: Request) {
   try {
     const cookieHeader = req.headers.get("cookie") || "";
     const cookies = parseCookies(cookieHeader);
     const sessionToken = cookies["token"];
     const auth = verifyToken(sessionToken);
-    if (!auth)
+
+    if (!auth) {
       return NextResponse.json(
         { ok: false, message: "Unauthorized" },
         { status: 401 }
       );
-
-    const body = await req.json().catch(() => ({}));
-    const { token } = body as { token?: string };
-    if (!token)
-      return NextResponse.json(
-        { ok: false, message: "token required" },
-        { status: 400 }
-      );
-
-    // verifikasi token QR
-    let qr: any;
-    try {
-      qr = jwt.verify(token, JWT);
-    } catch {
-      return NextResponse.json(
-        { ok: false, message: "Invalid/Expired token" },
-        { status: 400 }
-      );
     }
 
-    const tripId = String(qr.tripId);
-    const sessionId = String(qr.sessionId);
-    const userId = String(auth.user?.id);
-
-    // user harus anggota trip
-    const link = await prisma.userTrip.findFirst({
-      where: { userId, tripId },
-      include: { participant: true },
-    });
-    if (!link)
+    const role = String(auth.user?.role ?? "").toUpperCase();
+    if (role !== "ADMIN") {
       return NextResponse.json(
-        { ok: false, message: "Anda bukan peserta trip ini" },
+        { ok: false, message: "Forbidden (hanya admin)" },
         { status: 403 }
       );
+    }
 
-    // ambil user (untuk fallback loginUsername)
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.deletedAt) {
+    const body = await req.json().catch(() => ({}));
+    const { tripId, sessionId, token } = body as {
+      tripId?: string;
+      sessionId?: string;
+      token?: string;
+    };
+
+    if (!tripId || !sessionId || !token) {
       return NextResponse.json(
-        { ok: false, message: "User tidak ditemukan di trip ini" },
-        { status: 404 }
+        { ok: false, message: "tripId, sessionId & token wajib diisi" },
+        { status: 400 }
       );
     }
 
-    // =========================
-    // CARI PARTICIPANT TANPA WA
-    // =========================
+    // validasi session milik trip & belum dihapus
+    const schedule = await prisma.schedule.findUnique({
+      where: { id: sessionId },
+    });
 
-    let participant = link.participant ?? null;
-
-    if (!participant) {
-      // fallback data lama: match by loginUsername + tripId
-      participant = await prisma.participant.findFirst({
-        where: {
-          tripId,
-          loginUsername: user.username,
-          deletedAt: null,
-        },
-      });
-
-      // kalau ketemu, sekalian backfill ke UserTrip
-      if (participant && !link.participantId) {
-        await prisma.userTrip.update({
-          where: { id: link.id },
-          data: { participantId: participant.id },
-        });
-      }
-    }
-
-    if (!participant) {
+    if (!schedule || schedule.tripId !== tripId || schedule.deletedAt) {
       return NextResponse.json(
-        { ok: false, message: "Peserta tidak ditemukan di trip ini" },
-        { status: 404 }
+        { ok: false, message: "Agenda tidak valid untuk trip ini" },
+        { status: 400 }
       );
     }
 
-    // Upsert Attendance
-    const att = await prisma.attendance.upsert({
+    // ===== PARSE TOKEN DARI QR KARTU =====
+    const raw = token.trim();
+    const PREFIX = "TW-CHECKIN:";
+
+    if (!raw.startsWith(PREFIX)) {
+      return NextResponse.json(
+        { ok: false, message: "Format kode tidak dikenal" },
+        { status: 400 }
+      );
+    }
+
+    const checkinToken = raw.slice(PREFIX.length).trim();
+    if (!checkinToken) {
+      return NextResponse.json(
+        { ok: false, message: "Kode peserta tidak valid" },
+        { status: 400 }
+      );
+    }
+
+    // ===== CARI PESERTA BERDASARKAN TOKEN & TRIP =====
+    const participant = await prisma.participant.findFirst({
       where: {
-        participantId_sessionId: { participantId: participant.id, sessionId },
+        tripId,
+        checkinToken,
+        deletedAt: null,
+      },
+    });
+
+    if (!participant) {
+      return NextResponse.json(
+        { ok: false, message: "Peserta tidak ditemukan untuk trip ini" },
+        { status: 404 }
+      );
+    }
+
+    // ===== UPSERT ATTENDANCE (METODE QR) =====
+    const attendance = await prisma.attendance.upsert({
+      where: {
+        participantId_sessionId: {
+          participantId: participant.id,
+          sessionId,
+        },
       },
       update: { method: "QR" },
       create: {
@@ -111,7 +107,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // Update ringkas participant
+    // ===== UPDATE RINGKAS PESERTA =====
     const now = new Date();
     await prisma.participant.update({
       where: { id: participant.id },
@@ -126,22 +122,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // EK BADGE BARU
+    // ===== BADGE & STATUS TRIP =====
     const [checkinBadges, completeBadges] = await Promise.all([
-      // badge tipe CHECKIN_SESSION untuk sesi ini
       checkBadgesAfterCheckin({
         tripId,
         sessionId,
         participantId: participant.id,
       }),
-      // badge tipe COMPLETE_ALL_SESSIONS
       checkBadgesAfterAttendanceSummary({
         tripId,
         participantId: participant.id,
       }),
     ]);
 
-    // gabungkan & hilangkan duplikat berdasarkan id
     const allBadges = [...checkinBadges, ...completeBadges];
     const seen = new Set<string>();
     const uniqueBadges = allBadges.filter((b) => {
@@ -155,10 +148,13 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       data: {
-        attendanceId: att.id,
-        checkedAt: att.checkedAt,
+        attendanceId: attendance.id,
+        checkedAt: attendance.checkedAt,
+        participant: {
+          id: participant.id,
+          name: participant.name,
+        },
       },
-      // dikirim ke frontend utk toast
       newBadges: uniqueBadges.map((b) => ({
         id: b.id,
         name: b.name,

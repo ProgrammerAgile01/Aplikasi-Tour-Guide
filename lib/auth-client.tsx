@@ -69,10 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isLoading) return; // jangan redirect saat loading
 
     // Sudah login dan berada di halaman login → lempar ke tujuan
-    if (
-      user &&
-      pathname === "/login"
-    ) {
+    if (user && pathname === "/login") {
       if (user.role === "ADMIN") {
         router.replace("/admin/dashboard");
         return;
@@ -85,8 +82,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Belum login dan bukan di halaman login → bawa ke /login
-    if (!user && pathname !== "/login" && !pathname.startsWith("/api")) {
+    // Belum login dan bukan di halaman login / magic-login → bawa ke /login
+    if (
+      !user &&
+      pathname !== "/login" &&
+      pathname !== "/magic-login" &&
+      !pathname.startsWith("/api")
+    ) {
       router.replace("/login");
       return;
     }
@@ -125,16 +127,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">Memuat...</p>
-        </div>
-      </div>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+  //         <p className="text-slate-600">Memuat...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <AuthContext.Provider

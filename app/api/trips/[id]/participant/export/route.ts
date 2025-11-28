@@ -172,9 +172,9 @@ export async function GET(
       "Jam",
       "Judul Agenda",
       "Lokasi",
-      "Status Absen",
+      "Status Absen Kehadiran",
       "Metode",
-      "Waktu Absen",
+      "Waktu Absen Kehadiran",
     ];
 
     const attendanceRows: (string | number)[][] = schedules.map((s) => {

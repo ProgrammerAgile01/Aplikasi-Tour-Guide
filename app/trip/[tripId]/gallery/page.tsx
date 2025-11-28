@@ -287,7 +287,8 @@ export default function GalleryPage() {
 
       toast({
         title: "Berhasil!",
-        description: "Foto terkirim — menunggu persetujuan admin.",
+        // description: "Foto terkirim — menunggu persetujuan admin.",
+        description: "Foto berhasil di upload",
       });
 
       if (Array.isArray(data.newBadges) && data.newBadges.length > 0) {
@@ -384,7 +385,7 @@ export default function GalleryPage() {
                           <span className="truncate text-sm">{label}</span>
                           {isAttended && (
                             <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 whitespace-nowrap">
-                              {isLast ? "Absen terakhir" : "Sudah hadir"}
+                              {isLast ? "Absen kehadiran terakhir" : "Sudah hadir"}
                             </span>
                           )}
                         </div>
@@ -533,12 +534,12 @@ export default function GalleryPage() {
                     {formatRelativeTime(image.uploadedAt)}
                   </p>
 
-                  {image.status === "PENDING" && image.isMine && (
+                  {/* {image.status === "PENDING" && image.isMine && (
                     <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                       Dalam peninjauan
                     </p>
-                  )}
+                  )} */}
                 </div>
               </div>
             ))}

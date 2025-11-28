@@ -21,6 +21,10 @@ import {
   Send,
   IdCard,
   FileSpreadsheet,
+  QrCode,
+  Printer,
+  ArrowDown,
+  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -37,6 +41,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Participant {
   id: string;
@@ -53,6 +65,7 @@ interface Participant {
   totalCheckIns: number;
   tripId: string;
   createdAt?: string;
+  checkinToken: string;
 }
 
 interface Trip {
@@ -118,6 +131,24 @@ export default function AdminParticipantsPage() {
 
   const [exporting, setExporting] = useState(false);
 
+  // print kartu peserta
+  const [cardDialogOpen, setCardDialogOpen] = useState(false);
+  const [selectedForCard, setSelectedForCard] = useState<Participant | null>(
+    null
+  );
+  const [cardQrDataUrl, setCardQrDataUrl] = useState<string>("");
+  const [cardQrLoading, setCardQrLoading] = useState(false);
+
+  const [batchPrintParticipants, setBatchPrintParticipants] = useState<
+    (Participant & { qrDataUrl?: string })[]
+  >([]);
+  const [batchPrinting, setBatchPrinting] = useState(false);
+
+  const openCardDialog = (p: Participant) => {
+    setSelectedForCard(p);
+    setCardDialogOpen(true);
+  };
+
   const openDetailDialog = (p: Participant) => {
     setSelectedForDetail(p);
     setDetailDialogOpen(true);
@@ -146,6 +177,51 @@ export default function AdminParticipantsPage() {
   useEffect(() => {
     setPage(1);
   }, [searchQuery]);
+
+  useEffect(() => {
+    if (!cardDialogOpen || !selectedForCard) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setCardQrLoading(true);
+        const QRCode = (await import("qrcode")).default;
+
+        const payload = `TW-CHECKIN:${
+          selectedForCard.checkinToken ?? selectedForCard.id
+        }`;
+
+        const dataUrl = await QRCode.toDataURL(payload, {
+          margin: 1,
+          scale: 6,
+        });
+
+        if (!cancelled) {
+          setCardQrDataUrl(dataUrl);
+        }
+      } catch (e: any) {
+        console.error(e);
+        if (!cancelled) {
+          setCardQrDataUrl("");
+          toast({
+            title: "Gagal membuat QR",
+            description:
+              e?.message || "Kode QR kartu peserta tidak bisa dibuat",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setCardQrLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardDialogOpen, selectedForCard, toast]);
 
   async function loadTrips() {
     setLoadingTrips(true);
@@ -619,6 +695,63 @@ export default function AdminParticipantsPage() {
     }
   }
 
+  async function handlePrintAllCards() {
+    if (!selectedTripId) {
+      toast({
+        title: "Pilih Trip Terlebih Dahulu",
+        description: "Silakan pilih trip sebelum mencetak kartu peserta.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (filteredParticipants.length === 0) {
+      toast({
+        title: "Tidak Ada Peserta",
+        description: "Belum ada peserta untuk dicetak kartunya.",
+      });
+      return;
+    }
+
+    setBatchPrinting(true);
+    try {
+      const QRCode = (await import("qrcode")).default;
+
+      const list = await Promise.all(
+        filteredParticipants.map(async (p) => {
+          if (!p.checkinToken) {
+            // kalau belum ada token, biarkan tanpa QR
+            return { ...p };
+          }
+
+          const payload = `TW-CHECKIN:${p.checkinToken}`;
+          const qrDataUrl = await QRCode.toDataURL(payload, {
+            margin: 1,
+            scale: 4,
+          });
+
+          return { ...p, qrDataUrl };
+        })
+      );
+
+      setBatchPrintParticipants(list);
+
+      // beri waktu sejenak supaya DOM batch cards sempat render
+      setTimeout(() => {
+        window.print();
+      }, 100);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: err?.message || "Gagal menyiapkan kartu peserta.",
+        variant: "destructive",
+      });
+    } finally {
+      setBatchPrinting(false);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -751,33 +884,57 @@ export default function AdminParticipantsPage() {
                 <CardTitle className="text-lg md:text-xl">
                   Daftar Peserta
                 </CardTitle>
+
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleExportExcel}
-                    disabled={filteredParticipants.length === 0 || exporting}
-                    className="gap-2"
-                  >
-                    {exporting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <FileSpreadsheet className="w-4 h-4" />
-                    )}
-                    Export Excel
-                  </Button>
+                  {/* Dropdown Aksi */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={
+                          filteredParticipants.length === 0 && !selectedTripId
+                        }
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                        Aksi Masal
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Aksi Massal</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleExportExcel}
+                        disabled={
+                          filteredParticipants.length === 0 || exporting
+                        }
+                      >
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                        Export Excel Peserta
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={openSendAllDialog}
+                        disabled={filteredParticipants.length === 0}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Kirim Akun ke Semua Peserta
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handlePrintAllCards}
+                        disabled={
+                          filteredParticipants.length === 0 || batchPrinting
+                        }
+                      >
+                        <Printer className="w-4 h-4 mr-2" />
+                        {batchPrinting
+                          ? "Menyiapkan Kartu..."
+                          : "Print Semua Kartu"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={openSendAllDialog}
-                    disabled={filteredParticipants.length === 0}
-                    className="gap-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
-                  >
-                    <Send size={16} />
-                    Kirim Akun ke Semua Peserta
-                  </Button>
-
+                  {/* Tombol utama: Tambah Peserta */}
                   <Button
                     onClick={() => handleOpenDialog()}
                     className="gap-2 bg-blue-600 hover:bg-blue-700"
@@ -882,11 +1039,21 @@ export default function AdminParticipantsPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                onClick={() => openCardDialog(participant)}
+                                className="gap-1"
+                              >
+                                <QrCode size={14} /> Kartu
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => openDetailDialog(participant)}
                                 className="gap-1"
                               >
                                 <IdCard size={14} /> Detail
                               </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -895,6 +1062,7 @@ export default function AdminParticipantsPage() {
                               >
                                 <Pencil size={14} /> Edit
                               </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -908,6 +1076,7 @@ export default function AdminParticipantsPage() {
                               >
                                 <Trash2 size={14} /> Hapus
                               </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1577,6 +1746,199 @@ export default function AdminParticipantsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Kartu Peserta - card dengan QR untuk dicetak */}
+      <Dialog
+        open={cardDialogOpen}
+        onOpenChange={(open) => {
+          setCardDialogOpen(open);
+          if (!open) {
+            setSelectedForCard(null);
+            setCardQrDataUrl("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-blue-500" />
+              Kartu Peserta
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-600">
+              Kartu ini dapat dicetak dan digunakan untuk scan kehadiran
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedForCard && (
+            <div className="flex flex-col items-center gap-4">
+              {/* Kartu ukuran mendekati KTP (CR80) */}
+              <div
+                id="participant-card-print"
+                className="w-full max-w-sm aspect-[85.6/54] rounded-3xl relative overflow-hidden shadow-2xl border border-white/30"
+              >
+                {/* Background gradient biru */}
+                <div className="absolute inset-0 bg-gradient-to-br from-sky-700 via-cyan-600 to-blue-500" />
+
+                {/* Ornamen dekoratif */}
+                <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-white/10 blur-md" />
+                <div className="absolute top-1/3 -right-16 w-40 h-40 rounded-full bg-white/10 blur-lg" />
+                <div className="absolute bottom-0 right-10 w-24 h-24 rounded-full border border-white/20" />
+
+                {/* Konten */}
+                <div className="relative z-10 h-full px-4 py-3 flex">
+                  {/* Kiri */}
+                  <div className="flex-1 flex flex-col justify-between">
+                    {/* Header */}
+                    <div>
+                      <p className="text-[9px] uppercase tracking-[0.3em] text-white/70">
+                        AD Tour & Transport
+                      </p>
+                      <p className="text-md font-semibold text-white leading-tight line-clamp-2">
+                        {currentTrip?.name ?? "Nama Trip"}
+                      </p>
+                    </div>
+
+                    {/* Data Utama */}
+                    <div className="flex-1 flex flex-col justify-center">
+                      {/* NAMA */}
+                      <p className="text-[10px] text-white/70">Peserta</p>
+                      <p className="text-[15px] font-extrabold text-white leading-snug">
+                        {selectedForCard.name}
+                      </p>
+
+                      {/* WA */}
+                      <div className="mt-2">
+                        <p className="text-[10px] text-white/70">WhatsApp</p>
+                        <p className="text-[12px] font-semibold tracking-wide text-white">
+                          {selectedForCard.whatsapp}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <p className="text-[8px] text-white/70">
+                      Kartu ini digunakan sebagai identitas resmi peserta selama
+                      perjalanan
+                    </p>
+                  </div>
+
+                  {/* Kanan - QR */}
+                  <div className="w-28 mr-2 flex flex-col items-center justify-center">
+                    <div className="bg-white rounded-xl p-1.5 shadow-md w-full">
+                      {cardQrLoading ? (
+                        <div className="w-full h-20 flex items-center justify-center text-[10px] text-slate-400">
+                          Memuat QR…
+                        </div>
+                      ) : cardQrDataUrl ? (
+                        <img
+                          src={cardQrDataUrl}
+                          alt="QR Kartu Peserta"
+                          className="w-full h-auto rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-20 flex items-center justify-center text-[10px] text-slate-400">
+                          QR tidak tersedia
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 text-center">
+                Gunakan tombol{" "}
+                <span className="font-semibold">Cetak Kartu</span> lalu atur
+                skala ke 100% di dialog print browser. Kartu bisa dicetak di
+                kertas A4 dan dipotong seperti kartu identitas
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCardDialogOpen(false)}>
+              Tutup
+            </Button>
+            <Button
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              onClick={() => window.print()}
+              disabled={!selectedForCard}
+            >
+              <Printer className="w-4 h-4" />
+              Cetak Kartu
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Container tersembunyi untuk print semua kartu peserta */}
+      {batchPrintParticipants.length > 0 && (
+        <div id="participant-cards-print-all" className="hidden">
+          {batchPrintParticipants.map((p) => (
+            <div
+              key={p.id}
+              className="w-full max-w-sm aspect-[85.6/54] rounded-3xl relative overflow-hidden shadow-2xl border border-white/30"
+            >
+              {/* Background gradient biru – SAMA PERSIS seperti single */}
+              <div className="absolute inset-0 bg-gradient-to-br from-sky-700 via-cyan-600 to-blue-500" />
+
+              {/* Ornamen dekoratif */}
+              <div className="absolute -top-10 -left-10 w-32 h-32 rounded-full bg-white/10 blur-md" />
+              <div className="absolute top-1/3 -right-16 w-40 h-40 rounded-full bg-white/10 blur-lg" />
+              <div className="absolute bottom-0 right-10 w-24 h-24 rounded-full border border-white/20" />
+
+              {/* Konten (copy dari single card) */}
+              <div className="relative z-10 h-full px-4 py-3 flex gap-2">
+                {/* Kiri */}
+                <div className="flex-1 flex flex-col justify-between">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-[0.3em] text-white/70">
+                      AD Tour & Transport
+                    </p>
+                    <p className="text-sm font-semibold text-white leading-tight">
+                      {currentTrip?.name ?? "Nama Trip"}
+                    </p>
+                  </div>
+
+                  <div className="flex-1 flex flex-col justify-center">
+                    <p className="text-[10px] text-white/70">Peserta</p>
+                    <p className="text-[15px] font-extrabold text-white leading-snug">
+                      {p.name}
+                    </p>
+
+                    <div className="mt-2">
+                      <p className="text-[10px] text-white/70">WhatsApp</p>
+                      <p className="text-[12px] font-semibold tracking-wide text-white">
+                        {p.whatsapp}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-[8px] text-white/70">
+                    Kartu ini digunakan sebagai identitas resmi peserta selama
+                    perjalanan
+                  </p>
+                </div>
+
+                {/* Kanan - QR */}
+                <div className="w-28 mr-2 flex flex-col items-center justify-center">
+                  <div className="bg-white rounded-xl p-1.5 shadow-md w-full">
+                    {p.qrDataUrl ? (
+                      <img
+                        src={p.qrDataUrl}
+                        alt={`QR Kartu Peserta ${p.name}`}
+                        className="w-full h-auto rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-full h-20 flex items-center justify-center text-[10px] text-slate-400">
+                        QR tidak tersedia
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

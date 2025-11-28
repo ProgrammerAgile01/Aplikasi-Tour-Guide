@@ -56,17 +56,11 @@ export default function MapJourneyPage() {
   } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
 
-  const [routePath, setRoutePath] = useState<{ lat: number; lng: number }[]>(
-    []
-  );
-
   const mapContainerId = "trip-map-container";
   const mapRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const userAccuracyRef = useRef<L.Circle | null>(null);
-  const userRouteLayerRef = useRef<L.LayerGroup | null>(null);
-  const userRouteRef = useRef<L.Polyline | null>(null);
 
   const initialFitDoneRef = useRef(false);
   const userPositionRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -92,7 +86,8 @@ export default function MapJourneyPage() {
     })[0];
   }, [locations]);
 
-  const createMarkerIcon = (isVisited: boolean) => {
+  // 🔹 Marker dengan angka urutan di tengah
+  const createMarkerIcon = (order: number, isVisited: boolean) => {
     const bg = isVisited ? "#22c55e" : "#3b82f6";
 
     return L.divIcon({
@@ -102,14 +97,18 @@ export default function MapJourneyPage() {
           position: relative;
           width: 28px;
           height: 28px;
-          background: ${bg};
           border-radius: 50%;
+          background: ${bg};
           border: 2px solid white;
           box-shadow: 0 0 6px rgba(0,0,0,0.35);
           display: flex;
           align-items: center;
           justify-content: center;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 700;
         ">
+          <span>${order}</span>
           <div style="
             position: absolute;
             bottom: -8px;
@@ -156,7 +155,6 @@ export default function MapJourneyPage() {
 
           setTripName(data.trip?.name || "Peta Perjalanan");
           setLocations(data.locations || []);
-          setRoutePath(data.routePath || []);
 
           if (data.center) {
             setCenter(data.center);
@@ -204,20 +202,16 @@ export default function MapJourneyPage() {
     }).addTo(map);
 
     const markersLayer = L.layerGroup().addTo(map);
-    const userRouteLayer = L.layerGroup().addTo(map);
 
     mapRef.current = map;
     markersLayerRef.current = markersLayer;
-    userRouteLayerRef.current = userRouteLayer;
 
     return () => {
       map.remove();
       mapRef.current = null;
       markersLayerRef.current = null;
-      userRouteLayerRef.current = null;
       userMarkerRef.current = null;
       userAccuracyRef.current = null;
-      userRouteRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center.lat, center.lng]);
@@ -227,7 +221,7 @@ export default function MapJourneyPage() {
     userPositionRef.current = userPosition;
   }, [userPosition]);
 
-  // Markers + routePath segmented polyline + initial fitBounds
+  // 🔹 Hanya marker, TANPA garis lintasan
   useEffect(() => {
     if (!mapRef.current || !markersLayerRef.current) return;
     const map = mapRef.current;
@@ -237,13 +231,12 @@ export default function MapJourneyPage() {
 
     const bounds: L.LatLngExpression[] = [];
 
-    // 🔹 Marker tiap lokasi
     if (locations.length) {
       locations.forEach((loc, index) => {
         const isVisited = loc.visited;
 
         const marker = L.marker([loc.lat, loc.lng], {
-          icon: createMarkerIcon(isVisited),
+          icon: createMarkerIcon(index + 1, isVisited),
         });
 
         const popupHtml = `
@@ -272,99 +265,6 @@ export default function MapJourneyPage() {
       });
     }
 
-    // Gambar garis rute trip (pakai routePath kalau ada)
-    if (routePath.length > 1 && locations.length > 1) {
-      // urutkan lokasi sesuai urutan hari + jam
-      const ordered = [...locations].sort((a, b) => {
-        if (a.day !== b.day) return a.day - b.day;
-        return a.time.localeCompare(b.time);
-      });
-
-      // cari index terdekat di routePath untuk tiap lokasi
-      const routeIndices = ordered.map((loc) => {
-        let bestIdx = 0;
-        let bestDist = Number.POSITIVE_INFINITY;
-        for (let i = 0; i < routePath.length; i++) {
-          const p = routePath[i];
-          const dx = p.lat - loc.lat;
-          const dy = p.lng - loc.lng;
-          const dist = dx * dx + dy * dy;
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestIdx = i;
-          }
-        }
-        return bestIdx;
-      });
-
-      for (let i = 0; i < ordered.length - 1; i++) {
-        const from = ordered[i];
-        const to = ordered[i + 1];
-
-        let idxFrom = routeIndices[i];
-        let idxTo = routeIndices[i + 1];
-
-        if (idxFrom === idxTo) continue;
-        if (idxFrom > idxTo) {
-          const tmp = idxFrom;
-          idxFrom = idxTo;
-          idxTo = tmp;
-        }
-
-        const segmentPoints = routePath
-          .slice(idxFrom, idxTo + 1)
-          .map((p) => [p.lat, p.lng] as L.LatLngExpression);
-
-        if (!segmentPoints.length) continue;
-
-        // Hijau kalau kedua lokasi sudah dikunjungi, selain itu biru
-        const color = from.visited && to.visited ? "#22c55e" : "#0ea5e9";
-
-        const segLine = L.polyline(segmentPoints, {
-          color,
-          weight: 3,
-          opacity: 0.9,
-          lineJoin: "round",
-          lineCap: "round",
-        });
-
-        segLine.addTo(layer);
-        segmentPoints.forEach((p) => bounds.push(p));
-      }
-    } else if (locations.length > 1) {
-      // fallback: garis lurus antar titik kalau routePath kosong
-      const ordered = [...locations].sort((a, b) => {
-        if (a.day !== b.day) return a.day - b.day;
-        return a.time.localeCompare(b.time);
-      });
-
-      for (let i = 0; i < ordered.length - 1; i++) {
-        const from = ordered[i];
-        const to = ordered[i + 1];
-
-        const color = from.visited && to.visited ? "#22c55e" : "#0ea5e9";
-
-        const segLine = L.polyline(
-          [
-            [from.lat, from.lng],
-            [to.lat, to.lng],
-          ],
-          {
-            color,
-            weight: 3,
-            opacity: 0.9,
-            lineJoin: "round",
-            lineCap: "round",
-          }
-        );
-
-        segLine.addTo(layer);
-        bounds.push([from.lat, from.lng]);
-        bounds.push([to.lat, to.lng]);
-      }
-    }
-
-    // tambahkan posisi user (kalau sudah ada) hanya untuk initial fit
     if (userPositionRef.current) {
       bounds.push([userPositionRef.current.lat, userPositionRef.current.lng]);
     }
@@ -378,7 +278,7 @@ export default function MapJourneyPage() {
     if (!locations.length && !userPositionRef.current) {
       map.setView([center.lat, center.lng], 10);
     }
-  }, [locations, center, routePath]);
+  }, [locations, center]);
 
   // Geolocation
   useEffect(() => {
@@ -417,7 +317,7 @@ export default function MapJourneyPage() {
     };
   }, []);
 
-  // Marker user
+  // Marker user (tanpa garis rute ke lokasi berikutnya)
   useEffect(() => {
     if (!userPosition || !mapRef.current) return;
     const map = mapRef.current;
@@ -459,64 +359,6 @@ export default function MapJourneyPage() {
       userAccuracyRef.current.setLatLng([userPosition.lat, userPosition.lng]);
     }
   }, [userPosition]);
-
-  // Rute user -> nextUnvisited (orange)
-  useEffect(() => {
-    if (!userPosition || !nextUnvisited) {
-      if (userRouteRef.current && userRouteLayerRef.current) {
-        userRouteLayerRef.current.removeLayer(userRouteRef.current);
-        userRouteRef.current = null;
-      }
-      return;
-    }
-    if (!mapRef.current || !userRouteLayerRef.current) return;
-
-    let aborted = false;
-
-    async function buildRoute() {
-      try {
-        const from = `${userPosition.lng},${userPosition.lat}`;
-        const to = `${nextUnvisited.lng},${nextUnvisited.lat}`;
-
-        const url = `https://router.project-osrm.org/route/v1/driving/${from};${to}?overview=full&geometries=geojson`;
-
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Gagal membangun rute OSRM");
-        const data = await res.json();
-
-        const coords: [number, number][] =
-          data?.routes?.[0]?.geometry?.coordinates || [];
-
-        if (!coords.length || aborted) return;
-
-        const latLngs = coords.map((c) => [c[1], c[0]] as L.LatLngExpression);
-
-        const layer = userRouteLayerRef.current!;
-        if (userRouteRef.current) {
-          layer.removeLayer(userRouteRef.current);
-        }
-
-        const polyline = L.polyline(latLngs, {
-          color: "#f97316",
-          weight: 4,
-          opacity: 0.9,
-          lineJoin: "round",
-          lineCap: "round",
-        });
-
-        polyline.addTo(layer);
-        userRouteRef.current = polyline;
-      } catch (e) {
-        console.warn("Gagal membuat rute user → lokasi pertama:", e);
-      }
-    }
-
-    buildRoute();
-
-    return () => {
-      aborted = true;
-    };
-  }, [userPosition, nextUnvisited]);
 
   return (
     <div className="w-full min-h-screen bg-background pb-20">
@@ -611,9 +453,8 @@ export default function MapJourneyPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full border-2 border-white shadow bg-orange-400"></div>
                 <span className="text-xs text-muted-foreground">
-                  Rute Anda → lokasi berikutnya
+                  Nomor di pin = urutan destinasi
                 </span>
               </div>
             </div>

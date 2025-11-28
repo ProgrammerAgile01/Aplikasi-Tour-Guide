@@ -220,7 +220,8 @@ export async function GET(
           thickness: 0.5,
           color: rgb(0.85, 0.85, 0.85),
         });
-        page.drawText("Trip Story • Teman Wisata", {
+        // page.drawText("Trip Story • Teman Wisata", {
+        page.drawText("Trip Story • AD Tour & Transport", {
           x: margin,
           y: margin + 10,
           size: 9,
@@ -267,7 +268,8 @@ export async function GET(
     let logoDrawn = false;
     const logoUrlAbs =
       toAbsoluteUrl(req, setting?.logoUrl) ??
-      toAbsoluteUrl(req, "/logo-temanwisata.png");
+      toAbsoluteUrl(req, "/logo-ad-tour-transparan.png");
+      // toAbsoluteUrl(req, "/logo-temanwisata.png");
 
     if (logoUrlAbs) {
       try {
@@ -327,7 +329,8 @@ export async function GET(
     });
 
     // tagline kecil
-    page.drawText("Kenangan perjalananmu bersama Teman Wisata.", {
+    // page.drawText("Kenangan perjalananmu bersama Teman Wisata.", {
+    page.drawText("Kenangan perjalananmu bersama AD Tour & Transport.", {
       x: titleStartX,
       y: height - 110,
       size: 9,
@@ -583,7 +586,8 @@ export async function GET(
       color: rgb(0.85, 0.85, 0.85),
     });
 
-    page.drawText("Trip Story • Teman Wisata", {
+    // page.drawText("Trip Story • Teman Wisata", {
+    page.drawText("Trip Story • AD Tour & Transport", {
       x: margin,
       y: margin + 10,
       size: 9,

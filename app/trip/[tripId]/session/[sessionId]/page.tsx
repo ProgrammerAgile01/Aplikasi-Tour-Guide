@@ -577,7 +577,7 @@ export default function SessionDetailPage() {
             ? "Sudah Dikonfirmasi"
             : canCheckInNow
             ? "Konfirmasi Kehadiran"
-            : "Absen belum dibuka"}
+            : "Absen kehadiran belum dibuka"}
         </Button>
 
         {checkInStatus && nextSession && (

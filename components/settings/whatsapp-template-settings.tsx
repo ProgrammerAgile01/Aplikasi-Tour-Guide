@@ -112,7 +112,8 @@ function buildPreview(
       "📍 Lokasi: Komodo Airport",
     login_username: "budi1234@trip.com",
     login_password: "rahasia123",
-    login_url: "https://trip.agilestore.id/login",
+    magic_login_url: "https://temanwisata.com/api/magic-login?xxxx",
+    login_url: "https://temanwisata.com/login",
     announcement_title: "Perubahan Jam Keberangkatan",
     announcement_content:
       "Jam keberangkatan kapal dimajukan menjadi pukul 07.00 WITA. Mohon hadir 30 menit lebih awal di lobi hotel.",

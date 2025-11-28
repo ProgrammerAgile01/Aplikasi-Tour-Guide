@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "cross-env PORT=3010 next dev",
     "lint": "eslint .",
-    "start": "cross-env PORT=3010 next start"
+    "start": "cross-env PORT=3010 next start",
+    "backfill:checkin-token": "ts-node scripts/backfill-checkin-token.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
